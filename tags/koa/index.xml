@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Koa on 罄竹难书</title>
+    <link>https://se77en.cc/tags/koa/index.xml</link>
+    <description>Recent content in Koa on 罄竹难书</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <atom:link href="https://se77en.cc/tags/koa/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>使用 Koa 从零打造 TODO 应用</title>
+      <link>https://se77en.cc/2014/%E4%BD%BF%E7%94%A8-koa-%E4%BB%8E%E9%9B%B6%E6%89%93%E9%80%A0-todo-%E5%BA%94%E7%94%A8/</link>
+      <pubDate>Wed, 05 Feb 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://se77en.cc/2014/%E4%BD%BF%E7%94%A8-koa-%E4%BB%8E%E9%9B%B6%E6%89%93%E9%80%A0-todo-%E5%BA%94%E7%94%A8/</guid>
+      <description>&lt;p&gt;原文地址：&lt;a href=&#34;http://blog.peterdecroos.com/blog/2014/02/01/koa-zero-to-todo-list/&#34;&gt;Koa: Zero to Todo List&lt;/a&gt;&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;###注意：你需要使用node 0.11.x外加 &lt;code&gt;-harmony&lt;/code&gt; 来执行代码&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;Express 团队利用新的 ECMAScript 6 的生成器语法创建了新的框架，&lt;a href=&#34;http://koajs.com/&#34;&gt;Koa&lt;/a&gt; 框架是一个全新的 node web 框架，包含了很多有意思的东西。
+
+##之前的方式&lt;/p&gt;
+
+&lt;p&gt;在 node 标准库里，&lt;code&gt;http&lt;/code&gt; 模块被用来创建服务。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;var server = http.createServer(function(req, res) {
+  res.writeHead(200, {&#39;Content-Type&#39;: &#39;text/plain&#39;});
+  //这里写服务逻辑
+  res.end(&#39;&#39;);
+});
+
+server.listen(3000, &#39;127.0.0.1&#39;);
+console.log(&#39;listening on port 3000&#39;);
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Express 暴露一个方法使我们可以将 &lt;code&gt;http.createServer&lt;/code&gt; 作为回调。Express 中间件是一个函数集合，每个函数包含了三个参数 &lt;code&gt;req&lt;/code&gt;,&lt;code&gt;res&lt;/code&gt;,&lt;code&gt;next&lt;/code&gt;。中间件执行一些操作，修改请求或者返回对象然后通过调用 &lt;code&gt;next()&lt;/code&gt; 来传递到堆栈里的下一个中间件。它类似一个瀑布模型，在中间件栈的底部结束响应。&lt;/p&gt;
+
+&lt;p&gt;##进入 Koa：建立在生成器机制上的框架&lt;/p&gt;
+
+&lt;p&gt;就像 Express，Koa 也是生成一个可以被传递到 &lt;code&gt;http.createServer()&lt;/code&gt; 的回调。与 Express 不同的是，它使用生成器提供一个更加细粒度的控制流程。&lt;/p&gt;
+
+&lt;p&gt;下面是一个最基本的 Koa 应用，用来读取一个文件的内容&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;var koa      = require(&#39;koa&#39;);
+var Promise  = require(&#39;bluebird&#39;);
+
+//创建 promise 版本的 fs
+var fs = Promise.promisifyAll(require(&#39;fs&#39;));
+//创建 koa 实例
+var app = koa();
+
+app.use(function *(next) {
+  //这是一个示例中间件，在控制台记录一些东西
+  console.log(&#39;timestamp: before request =&amp;gt; &#39;, time.now());
+  yield next;
+  console.log(&#39;timestamp: after request =&amp;gt; &#39;, time.now());
+});
+
+app.use(function *() {
+  this.body = yield fs.readFileAsync(&#39;./app.js&#39;, &#39;utf8&#39;);
+});
+
+app.listen(3000);
+console.log(&#39;now listening on port 3000&#39;);
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;不像 Express，Koa 中中间件使用生成器来编写。在 Koa 流中下游的中间件在返回时向上流动(回形针调用方式，具体参见：koajs.cn)。通过显式的调用 &lt;code&gt;yield next&lt;/code&gt; 来执行下游中间件。当下游中间件返回时，控制流回溯到上游中间件。&lt;/p&gt;
+
+&lt;p&gt;Express 通过不同的函数来传递 node 原生的 req 和 res，Koa 则是通过讲它们装入一个借口来管理上下文。不过它们仍然可以通过 &lt;code&gt;this&lt;/code&gt; 关键字获取到，像这样：&lt;code&gt;this.req&lt;/code&gt;, &lt;code&gt;this.res&lt;/code&gt;。然而，在文档中直接使用原生对象是不被推荐的。可以预测到当在控制流中调用 &lt;code&gt;this.res.end(&#39;&#39;)&lt;/code&gt; 时会抛出一个 monkey wrench(猴子扳手？此处不会翻译欢迎指正)。所以建议你使用 &lt;code&gt;this.request&lt;/code&gt; 和 &lt;code&gt;this.response&lt;/code&gt; 来代替直接调用原生对象。很多方法都起了别名指向直接用 &lt;code&gt;this&lt;/code&gt; 调用，比如：&lt;code&gt;this.body&lt;/code&gt; 就是 &lt;code&gt;this.response.body&lt;/code&gt; 的别名。&lt;/p&gt;
+
+&lt;p&gt;目前似乎还没有出现可以直接得到请求体的办法。co-body 分析器可以直接的解析请求体，不过文档说别这么做，Koa 是一个年轻的框架，所以别让你的手闲下来。&lt;/p&gt;
+
+&lt;p&gt;##使用 Koa 做一个 TODO 应用&lt;/p&gt;
+
+&lt;p&gt;刚才我们已经简单的进行了介绍，现在来试着做一个复杂点的。一个 TODO 应用貌似不错，为了简化，我们把 todos 存放在内存里。&lt;/p&gt;
+
+&lt;p&gt;Koa 是一个极简的框架，它核心里并没有提供 body 解析，session 和 routing。不幸的是 Koa 太嫩了以至于还没有很多 npm 的模块是为它来写的。浏览了一下 &lt;a href=&#34;https://github.com/koajs/koa/wiki&#34;&gt;Koa 介绍页面&lt;/a&gt;发现有一些必要的模块可以供给我们的基本 TODO 应用来使用。&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/koajs/route&#34;&gt;koa-route&lt;/a&gt;: 用作路由&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/visionmedia/co-body&#34;&gt;co-body&lt;/a&gt;: 用作解析 post 请求体&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/koajs/static&#34;&gt;koa-static&lt;/a&gt;: 用于处理静态文件&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;下面是基本的服务端 api&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;var koa          = require(&#39;koa&#39;);
+var staticServer = require(&#39;koa-staitc&#39;);
+
+//这个允许我们解析原生请求对象来获取请求内容
+var parse        = require(&#39;co-body&#39;);
+
+var router       = require(&#39;koa-route&#39;);
+var _            = require(&#39;underscore&#39;);
+
+var Promise      = require(&#39;bluebird&#39;);
+var path         = require(&#39;path&#39;);
+
+var fs           = Promise.promisifyAll(require(&#39;fs&#39;));
+var app          = koa();
+
+//我们的最简单的存储方式
+var todos = [];
+
+//获取唯一的 id 值
+var counter = (function() {
+  var count = 0;
+  return function() {
+    count++;
+    return count;
+  }
+})();
+
+//处理静态资源文件夹
+app.use(staticServer(path.join(__dirname, &#39;public&#39;)));
+
+app.use(router.post(&#39;/todos&#39;, function *() {
+  /*
+    yield使我们可以传递异步函数，然后返回内容或者是 promises
+    它会冻结当前中间件直到函数被执行完成，然后返回当前中间件继续解冻执行
+  */
+  var todo = (yield parse.json(this));
+  
+  todo.id = counter();
+  todos.push(todo);
+  this.body = JSON.stringify(todos);
+}));
+
+app.use(router.get(&#39;/todos&#39;, function *() {
+  this.body = JSON.stringify(todos);
+}));
+
+app.use(router.delete(&#39;/todos/:id&#39;, function *(id) {
+  todos = _(todos).reject(function(todo) {
+    console.log(&#39;what? &#39;, todo, id);
+    return todo.id === parseInt(id, 10);
+  }, this);
+  this.body = JSON.stringify(todos.sort(function(a, b) {
+    return a - b;
+  }));
+}));
+
+app.listen(3000);
+console.log(&#39;listening on port 3000&#39;);
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;从 &lt;a href=&#34;https://github.com/cultofmetatron/koa-todo&#34;&gt;github&lt;/a&gt; 上下载完整代码，github 上的版本包含了前端代码。&lt;/p&gt;
+
+&lt;p&gt;###一些需要注意的：&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;yield&lt;/code&gt; 关键字可以做一些有意思的事情。如果我们向当前中间件传递一个一步函数，这个函数返回数据块或者 promise，那么它会停止执行当前中间件直到函数完成。等它返回数据块或者 promise 后，会恢复生成器执行。这样更容易阅读。&lt;/p&gt;
+
+&lt;p&gt;###一些警告：&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;yield&lt;/code&gt; 关键字使我们可以写出一些安全的代码块，但它也不总是理想的解决办法。&lt;/p&gt;
+
+&lt;p&gt;举个栗子，如果我们执行三个相互不依赖的异步操作，像下面这样&amp;hellip;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;app.use(function *() {
+  var a = yield async1();
+  var b = yield async2();
+  var c = yield async3();
+});
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;这会使 node 的并发失效。当我们调用 async1,我们必须等待 async1 完成才能执行 async2。不过我们可以用 promise 来优化这3个函数，然后生成一个合并的 promise。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;app.use(function *() {
+  var a = async1();
+  var b = async2();
+  var c = async3();
+  var result = yield Promise.all([a, b, c]);
+});
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;注意：tjholowaychuk 大神在原文留言指出了一些问题，见下面图&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;当 Koa 框架成熟时，它将会允许更加细粒度的控制以便于我们写出下一代的 web 应用。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&#34;https://se77en.cc/img/koa-zero-to-todo-list-translation/1.png&#34; alt=&#34;TJ&#34; /&gt;&lt;/p&gt;</description>
+    </item>
+    
+  </channel>
+</rss>

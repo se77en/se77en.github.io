@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Blog on 罄竹难书</title>
+    <link>https://se77en.cc/tags/blog/index.xml</link>
+    <description>Recent content in Blog on 罄竹难书</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <atom:link href="https://se77en.cc/tags/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>为你的 Github Page 加上 HTTPS</title>
+      <link>https://se77en.cc/2016/%E4%B8%BA%E4%BD%A0%E7%9A%84-github-page-%E5%8A%A0%E4%B8%8A-https/</link>
+      <pubDate>Mon, 21 Mar 2016 00:00:00 +0000</pubDate>
+      
+      <guid>https://se77en.cc/2016/%E4%B8%BA%E4%BD%A0%E7%9A%84-github-page-%E5%8A%A0%E4%B8%8A-https/</guid>
+      <description>&lt;h2 id=&#34;概述&#34;&gt;概述&lt;/h2&gt;
+
+&lt;p&gt;前几天突然收到一封邮件，长这样：&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;Hey Damon Zhao!&lt;/p&gt;
+
+&lt;p&gt;I am @nubela on Github and I found your project (se77en/se77en.github.io) on Github. There is a small chance you might have heard of some of my projects such as Javelin Browser or Gom VPN.&lt;/p&gt;
+
+&lt;p&gt;Anyways, I found that Github Page at se77en/se77en.github.io has a custom domain, and I was wondering if I can help you get it to HTTPS with a LetsEncrypt cert? (for free, of course!)&lt;/p&gt;
+
+&lt;p&gt;I work at Kloudsec (a free and minimal CDN for programmers) and I just built this tool to provision LetsEncrypt certs for github pages.&lt;/p&gt;
+
+&lt;p&gt;Will you like to try it? (and help me test it?) ;)&lt;/p&gt;
+
+&lt;p&gt;Steven.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;意思就是他们做个一个可以免费帮你把 Github Page 加 HTTPS 的服务，活雷锋啊，谁信啊！反正我是没信，这哥们估计也猜到了我不会信，又连着发了几封，就是说反正不花钱，你的博客又没有秘密，试试呗。然后我就试试了。。。试完感觉上天了，赶紧回复这哥们这东西好啊，爽歪歪啊，你是活雷锋啊。他说我服务这么好你写篇博客替我宣传呗，我说必须哒！于是有个这篇博客。
+&lt;/p&gt;
+
+&lt;h2 id=&#34;先决条件&#34;&gt;先决条件&lt;/h2&gt;
+
+&lt;p&gt;首先你得有个自定义域名，没有的话就别往下看了。&lt;/p&gt;
+
+&lt;h2 id=&#34;步骤&#34;&gt;步骤&lt;/h2&gt;
+
+&lt;ol&gt;
+&lt;li&gt;访问 &lt;a href=&#34;https://kloudsec.com&#34;&gt;活雷锋网站 Kloudsec&lt;/a&gt;，大概长这样，然后点击泛黄的按钮。
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/1.png&#34; alt=&#34;1&#34; /&gt;&lt;/li&gt;
+&lt;li&gt;在弹出的白匡里输入你的域名。
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/2.png&#34; alt=&#34;2&#34; /&gt;&lt;/li&gt;
+&lt;li&gt;输入邮箱和密码注册账号。
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/3.png&#34; alt=&#34;3&#34; /&gt;&lt;/li&gt;
+&lt;li&gt;登录你的邮箱激活账号。
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/4.png&#34; alt=&#34;4&#34; /&gt;&lt;/li&gt;
+&lt;li&gt;激活登录账号以后主页应该长这样。点击 &lt;strong&gt;GET INSTRUCTIONS&lt;/strong&gt;。
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/5.png&#34; alt=&#34;5&#34; /&gt;&lt;/li&gt;
+&lt;li&gt;接下来它会给出一些配置，登录你的域名 DNS 提供商修改这些配置，我用的是 dnspod，长这样(注意 A 记录只能留它给的这一个，之前的要全部删除掉)，修改完之后点击 &lt;strong&gt;VERIFY DNS RECORDS&lt;/strong&gt;。
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/6-1.png&#34; alt=&#34;6-2&#34; /&gt;
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/6-2.png&#34; alt=&#34;6-2&#34; /&gt;
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/6-3.png&#34; alt=&#34;6-3&#34; /&gt;&lt;/li&gt;
+&lt;li&gt;验证完成(可能等待与人品成反比的时间)之后，回到主页点击类似播放键的按钮，会出现几个问题等待修复，一个一个修复就行，全程下一步。
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/7.png&#34; alt=&#34;7&#34; /&gt;&lt;/li&gt;
+&lt;li&gt;然后等待获取 https 证书，同样等待时间与人品成反比，不要急，你人品不行。
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/8-1.png&#34; alt=&#34;8-2&#34; /&gt;
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/8-2.png&#34; alt=&#34;8-2&#34; /&gt;&lt;/li&gt;
+&lt;li&gt;现在可以访问 &lt;code&gt;https://yourawesomeshittydomain.xxoo&lt;/code&gt; 来验证看是否成功了。&lt;/li&gt;
+&lt;li&gt;这时你可能会发现直接输入不加 &lt;code&gt;https&lt;/code&gt; 前缀的域名不会自动跳转到 &lt;code&gt;https&lt;/code&gt; 开头的域名，同样 &lt;code&gt;www&lt;/code&gt; 开头的域名也不会，不用担心，活雷锋都替你想好了。&lt;/li&gt;
+&lt;li&gt;点击左侧边栏的 &lt;strong&gt;PROTECTION&lt;/strong&gt; 然后把自动重定向到 &lt;code&gt;https&lt;/code&gt; 都打开。
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/11-1.png&#34; alt=&#34;11-1&#34; /&gt;
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/11-2.png&#34; alt=&#34;11-2&#34; /&gt;&lt;/li&gt;
+&lt;li&gt;完成了，上天吧(额。。。上天是不可能的，不过谷歌会提高 https 网站的搜索排名，国内某(垃圾)搜索引擎不详)！
+&lt;img src=&#34;https://se77en.cc/img/make-your-github-page-custom-domain-with-https/12.png&#34; alt=&#34;12&#34; /&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&#34;感谢&#34;&gt;感谢&lt;/h2&gt;
+
+&lt;p&gt;感觉那些活雷锋(steven@nubela.co)们。&lt;/p&gt;</description>
+    </item>
+    
+  </channel>
+</rss>

@@ -1,0 +1,479 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Javascript on 罄竹难书</title>
+    <link>https://se77en.cc/tags/javascript/index.xml</link>
+    <description>Recent content in Javascript on 罄竹难书</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <atom:link href="https://se77en.cc/tags/javascript/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>使用 Koa 从零打造 TODO 应用</title>
+      <link>https://se77en.cc/2014/%E4%BD%BF%E7%94%A8-koa-%E4%BB%8E%E9%9B%B6%E6%89%93%E9%80%A0-todo-%E5%BA%94%E7%94%A8/</link>
+      <pubDate>Wed, 05 Feb 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://se77en.cc/2014/%E4%BD%BF%E7%94%A8-koa-%E4%BB%8E%E9%9B%B6%E6%89%93%E9%80%A0-todo-%E5%BA%94%E7%94%A8/</guid>
+      <description>&lt;p&gt;原文地址：&lt;a href=&#34;http://blog.peterdecroos.com/blog/2014/02/01/koa-zero-to-todo-list/&#34;&gt;Koa: Zero to Todo List&lt;/a&gt;&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;###注意：你需要使用node 0.11.x外加 &lt;code&gt;-harmony&lt;/code&gt; 来执行代码&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;Express 团队利用新的 ECMAScript 6 的生成器语法创建了新的框架，&lt;a href=&#34;http://koajs.com/&#34;&gt;Koa&lt;/a&gt; 框架是一个全新的 node web 框架，包含了很多有意思的东西。
+
+##之前的方式&lt;/p&gt;
+
+&lt;p&gt;在 node 标准库里，&lt;code&gt;http&lt;/code&gt; 模块被用来创建服务。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;var server = http.createServer(function(req, res) {
+  res.writeHead(200, {&#39;Content-Type&#39;: &#39;text/plain&#39;});
+  //这里写服务逻辑
+  res.end(&#39;&#39;);
+});
+
+server.listen(3000, &#39;127.0.0.1&#39;);
+console.log(&#39;listening on port 3000&#39;);
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Express 暴露一个方法使我们可以将 &lt;code&gt;http.createServer&lt;/code&gt; 作为回调。Express 中间件是一个函数集合，每个函数包含了三个参数 &lt;code&gt;req&lt;/code&gt;,&lt;code&gt;res&lt;/code&gt;,&lt;code&gt;next&lt;/code&gt;。中间件执行一些操作，修改请求或者返回对象然后通过调用 &lt;code&gt;next()&lt;/code&gt; 来传递到堆栈里的下一个中间件。它类似一个瀑布模型，在中间件栈的底部结束响应。&lt;/p&gt;
+
+&lt;p&gt;##进入 Koa：建立在生成器机制上的框架&lt;/p&gt;
+
+&lt;p&gt;就像 Express，Koa 也是生成一个可以被传递到 &lt;code&gt;http.createServer()&lt;/code&gt; 的回调。与 Express 不同的是，它使用生成器提供一个更加细粒度的控制流程。&lt;/p&gt;
+
+&lt;p&gt;下面是一个最基本的 Koa 应用，用来读取一个文件的内容&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;var koa      = require(&#39;koa&#39;);
+var Promise  = require(&#39;bluebird&#39;);
+
+//创建 promise 版本的 fs
+var fs = Promise.promisifyAll(require(&#39;fs&#39;));
+//创建 koa 实例
+var app = koa();
+
+app.use(function *(next) {
+  //这是一个示例中间件，在控制台记录一些东西
+  console.log(&#39;timestamp: before request =&amp;gt; &#39;, time.now());
+  yield next;
+  console.log(&#39;timestamp: after request =&amp;gt; &#39;, time.now());
+});
+
+app.use(function *() {
+  this.body = yield fs.readFileAsync(&#39;./app.js&#39;, &#39;utf8&#39;);
+});
+
+app.listen(3000);
+console.log(&#39;now listening on port 3000&#39;);
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;不像 Express，Koa 中中间件使用生成器来编写。在 Koa 流中下游的中间件在返回时向上流动(回形针调用方式，具体参见：koajs.cn)。通过显式的调用 &lt;code&gt;yield next&lt;/code&gt; 来执行下游中间件。当下游中间件返回时，控制流回溯到上游中间件。&lt;/p&gt;
+
+&lt;p&gt;Express 通过不同的函数来传递 node 原生的 req 和 res，Koa 则是通过讲它们装入一个借口来管理上下文。不过它们仍然可以通过 &lt;code&gt;this&lt;/code&gt; 关键字获取到，像这样：&lt;code&gt;this.req&lt;/code&gt;, &lt;code&gt;this.res&lt;/code&gt;。然而，在文档中直接使用原生对象是不被推荐的。可以预测到当在控制流中调用 &lt;code&gt;this.res.end(&#39;&#39;)&lt;/code&gt; 时会抛出一个 monkey wrench(猴子扳手？此处不会翻译欢迎指正)。所以建议你使用 &lt;code&gt;this.request&lt;/code&gt; 和 &lt;code&gt;this.response&lt;/code&gt; 来代替直接调用原生对象。很多方法都起了别名指向直接用 &lt;code&gt;this&lt;/code&gt; 调用，比如：&lt;code&gt;this.body&lt;/code&gt; 就是 &lt;code&gt;this.response.body&lt;/code&gt; 的别名。&lt;/p&gt;
+
+&lt;p&gt;目前似乎还没有出现可以直接得到请求体的办法。co-body 分析器可以直接的解析请求体，不过文档说别这么做，Koa 是一个年轻的框架，所以别让你的手闲下来。&lt;/p&gt;
+
+&lt;p&gt;##使用 Koa 做一个 TODO 应用&lt;/p&gt;
+
+&lt;p&gt;刚才我们已经简单的进行了介绍，现在来试着做一个复杂点的。一个 TODO 应用貌似不错，为了简化，我们把 todos 存放在内存里。&lt;/p&gt;
+
+&lt;p&gt;Koa 是一个极简的框架，它核心里并没有提供 body 解析，session 和 routing。不幸的是 Koa 太嫩了以至于还没有很多 npm 的模块是为它来写的。浏览了一下 &lt;a href=&#34;https://github.com/koajs/koa/wiki&#34;&gt;Koa 介绍页面&lt;/a&gt;发现有一些必要的模块可以供给我们的基本 TODO 应用来使用。&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/koajs/route&#34;&gt;koa-route&lt;/a&gt;: 用作路由&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/visionmedia/co-body&#34;&gt;co-body&lt;/a&gt;: 用作解析 post 请求体&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://github.com/koajs/static&#34;&gt;koa-static&lt;/a&gt;: 用于处理静态文件&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;下面是基本的服务端 api&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;var koa          = require(&#39;koa&#39;);
+var staticServer = require(&#39;koa-staitc&#39;);
+
+//这个允许我们解析原生请求对象来获取请求内容
+var parse        = require(&#39;co-body&#39;);
+
+var router       = require(&#39;koa-route&#39;);
+var _            = require(&#39;underscore&#39;);
+
+var Promise      = require(&#39;bluebird&#39;);
+var path         = require(&#39;path&#39;);
+
+var fs           = Promise.promisifyAll(require(&#39;fs&#39;));
+var app          = koa();
+
+//我们的最简单的存储方式
+var todos = [];
+
+//获取唯一的 id 值
+var counter = (function() {
+  var count = 0;
+  return function() {
+    count++;
+    return count;
+  }
+})();
+
+//处理静态资源文件夹
+app.use(staticServer(path.join(__dirname, &#39;public&#39;)));
+
+app.use(router.post(&#39;/todos&#39;, function *() {
+  /*
+    yield使我们可以传递异步函数，然后返回内容或者是 promises
+    它会冻结当前中间件直到函数被执行完成，然后返回当前中间件继续解冻执行
+  */
+  var todo = (yield parse.json(this));
+  
+  todo.id = counter();
+  todos.push(todo);
+  this.body = JSON.stringify(todos);
+}));
+
+app.use(router.get(&#39;/todos&#39;, function *() {
+  this.body = JSON.stringify(todos);
+}));
+
+app.use(router.delete(&#39;/todos/:id&#39;, function *(id) {
+  todos = _(todos).reject(function(todo) {
+    console.log(&#39;what? &#39;, todo, id);
+    return todo.id === parseInt(id, 10);
+  }, this);
+  this.body = JSON.stringify(todos.sort(function(a, b) {
+    return a - b;
+  }));
+}));
+
+app.listen(3000);
+console.log(&#39;listening on port 3000&#39;);
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;从 &lt;a href=&#34;https://github.com/cultofmetatron/koa-todo&#34;&gt;github&lt;/a&gt; 上下载完整代码，github 上的版本包含了前端代码。&lt;/p&gt;
+
+&lt;p&gt;###一些需要注意的：&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;yield&lt;/code&gt; 关键字可以做一些有意思的事情。如果我们向当前中间件传递一个一步函数，这个函数返回数据块或者 promise，那么它会停止执行当前中间件直到函数完成。等它返回数据块或者 promise 后，会恢复生成器执行。这样更容易阅读。&lt;/p&gt;
+
+&lt;p&gt;###一些警告：&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;yield&lt;/code&gt; 关键字使我们可以写出一些安全的代码块，但它也不总是理想的解决办法。&lt;/p&gt;
+
+&lt;p&gt;举个栗子，如果我们执行三个相互不依赖的异步操作，像下面这样&amp;hellip;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;app.use(function *() {
+  var a = yield async1();
+  var b = yield async2();
+  var c = yield async3();
+});
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;这会使 node 的并发失效。当我们调用 async1,我们必须等待 async1 完成才能执行 async2。不过我们可以用 promise 来优化这3个函数，然后生成一个合并的 promise。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;app.use(function *() {
+  var a = async1();
+  var b = async2();
+  var c = async3();
+  var result = yield Promise.all([a, b, c]);
+});
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;注意：tjholowaychuk 大神在原文留言指出了一些问题，见下面图&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;当 Koa 框架成熟时，它将会允许更加细粒度的控制以便于我们写出下一代的 web 应用。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&#34;https://se77en.cc/img/koa-zero-to-todo-list-translation/1.png&#34; alt=&#34;TJ&#34; /&gt;&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>JavaScript 迭代器和生成器</title>
+      <link>https://se77en.cc/2014/javascript-%E8%BF%AD%E4%BB%A3%E5%99%A8%E5%92%8C%E7%94%9F%E6%88%90%E5%99%A8/</link>
+      <pubDate>Mon, 20 Jan 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://se77en.cc/2014/javascript-%E8%BF%AD%E4%BB%A3%E5%99%A8%E5%92%8C%E7%94%9F%E6%88%90%E5%99%A8/</guid>
+      <description>&lt;h1 id=&#34;迭代器和生成器&#34;&gt;迭代器和生成器&lt;/h1&gt;
+
+&lt;p&gt;翻译自 MDN 官方文档，原文地址：&lt;a href=&#34;https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Iterators_and_Generators?redirectlocale=en-US&amp;amp;redirectslug=JavaScript%2FGuide%2FIterators_and_Generators&#34;&gt;Iterators and Generators&lt;/a&gt;
+
+处理集合里的每一项是一个非常普通的操作，JavaScript提供了许多方法来迭代一个集合，从简单的&lt;a href=&#34;https://developer.mozilla.org/en/JavaScript/Reference/Statements/for&#34;&gt;for&lt;/a&gt;和&lt;a href=&#34;https://developer.mozilla.org/en/JavaScript/Reference/Statements/for_each...in&#34;&gt;for each&lt;/a&gt;循环到 &lt;a href=&#34;https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array/map&#34;&gt;map()&lt;/a&gt;，&lt;a href=&#34;https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array/filter&#34;&gt;filter()&lt;/a&gt; 和 &lt;a href=&#34;https://developer.mozilla.org/en/JavaScript/Guide/Predefined_Core_Objects#Array_comprehensions&#34;&gt;array comprehensions&lt;/a&gt;(数组推导式)。在JavaScript 1.7中，迭代器和生成器在JavaScript核心语法中带来了新的迭代机制，而且还提供了定制 &lt;a href=&#34;https://developer.mozilla.org/en/JavaScript/Reference/Statements/for...in&#34;&gt;for&amp;hellip;in&lt;/a&gt; 和 &lt;a href=&#34;https://developer.mozilla.org/en/JavaScript/Reference/Statements/for_each...in&#34;&gt;for each&lt;/a&gt; 循环行为的机制。&lt;/p&gt;
+
+&lt;p&gt;##迭代器&lt;/p&gt;
+
+&lt;p&gt;迭代器是一个每次访问集合序列中一个元素的对象，并跟踪该序列中迭代的当前位置。在JavaScript中迭代器是一个对象，这个对象提供了一个 &lt;code&gt;next()&lt;/code&gt; 方法，&lt;code&gt;next()&lt;/code&gt; 方法返回序列中的下一个元素。当序列中所有元素都遍历完成时，该方法抛出 &lt;code&gt;StopIteration&lt;/code&gt; 异常。&lt;/p&gt;
+
+&lt;p&gt;迭代器对象一旦被建立，就可以通过显式的重复调用&lt;code&gt;next()&lt;/code&gt;，或者使用JavaScript的 &lt;a href=&#34;https://developer.mozilla.org/en/JavaScript/Reference/Statements/for...in&#34;&gt;for&amp;hellip;in&lt;/a&gt; 和 &lt;a href=&#34;https://developer.mozilla.org/en/JavaScript/Reference/Statements/for_each...in&#34;&gt;for each&lt;/a&gt; 循环隐式调用。&lt;/p&gt;
+
+&lt;p&gt;简单的对对象和数组进行迭代的迭代器可以使用 &lt;code&gt;Iterator()&lt;/code&gt; 被创建：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    var lang = { name: &#39;JavaScript&#39;, birthYear: 1995 };
+    var it = Iterator(lang);
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;一旦初始化完成，&lt;code&gt;next()&lt;/code&gt; 方法可以被调用来依次访问对象的键值对:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    var pair = it.next(); //键值对是[&amp;quot;name&amp;quot;, &amp;quot;JavaScript&amp;quot;]
+    pair = it.next(); //键值对是[&amp;quot;birthday&amp;quot;, 1995]
+    pair = it.next(); //一个 `StopIteration` 异常被抛出
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://developer.mozilla.org/en/JavaScript/Reference/Statements/for...in&#34;&gt;for&amp;hellip;in&lt;/a&gt; 循环可以被用来替换显式的调用 &lt;code&gt;next()&lt;/code&gt; 方法。当 &lt;code&gt;StopIteration&lt;/code&gt; 异常被抛出时，循环会自动终止。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    var it = Iterator(lang);
+    for (var pair in it)
+      print(pair); //每次输出 it 中的一个 [key, value] 键值对
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;如果你只想迭代对象的 key 值，可以往 &lt;code&gt;Iterator()&lt;/code&gt; 函数中传入第二个参数，值为 &lt;code&gt;true&lt;/code&gt;：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    var it = Iterator(lang, true);
+    for (var key in it)
+      print(key); //每次输出 key 值
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;使用 &lt;code&gt;Iterator()&lt;/code&gt; 访问对象的一个好处是，被添加到 &lt;code&gt;Object.prototype&lt;/code&gt; 的自定义属性不会被包含在序列对象中。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;Iterator()&lt;/code&gt; 同样可以被作用在数组上：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    var langs = [&#39;JavaScript&#39;, &#39;Python&#39;, &#39;Haskell&#39;];
+    var it = Iterator(langs);
+    for (var pair in it)
+      print(pair); //每次迭代输出 [index, language] 键值对
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;就像遍历对象一样，把 &lt;code&gt;true&lt;/code&gt; 当做第二个参数传入遍历的结果将会是数组索引：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    var langs = [&#39;JavaScript&#39;, &#39;Python&#39;, &#39;Haskell&#39;];
+    var it = Iterator(langs, true);
+    for (var i in it)
+      print(i); //输出 0，然后是 1，然后是 2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;使用 &lt;code&gt;let&lt;/code&gt; 关键字可以在循环内部分别分配索引和值给块变量，还可以解构赋值(Destructuring Assignment)：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    var langs = [&#39;JavaScript&#39;, &#39;Python&#39;, &#39;Haskell&#39;];
+    var it = Iterators(langs);
+    for (let [i, lang] in it)
+      print(i + &#39;: &#39; + lang); //输出 &amp;quot;0: JavaScript&amp;quot; 等
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;##声明自定义迭代器&lt;/p&gt;
+
+&lt;p&gt;一些代表元素集合的对象应该用一种指定的方式来迭代。&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;迭代一个表示范围(Range)的对象应该一个接一个的返回这个范围包含的数字&lt;/li&gt;
+&lt;li&gt;一个树的叶子节点可以使用深度优先或者广度优先访问到&lt;/li&gt;
+&lt;li&gt;迭代一个代表数据库查询结果的对象应该一行一行的返回，即使整个结果集尚未全部加载到一个单一数组&lt;/li&gt;
+&lt;li&gt;作用在一个无限数学序列(像斐波那契序列)上的迭代器应该在不创建无限长度数据结构的前提下一个接一个的返回结果&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;JavaScript 允许你写自定义迭代逻辑的代码，并把它作用在一个对象上&lt;/p&gt;
+
+&lt;p&gt;我们创建一个简单的 &lt;code&gt;Range&lt;/code&gt; 对象，包含低和高两个值&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    function Range(low, high){
+      this.low = low;
+      this.high = high;
+    }
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;现在我们创建一个自定义迭代器，它返回一个包含范围内所有整数的序列。迭代器接口需要我们提供一个 &lt;code&gt;next()&lt;/code&gt; 方法用来返回序列中的下一个元素或者是抛出 &lt;code&gt;StopIteration&lt;/code&gt; 异常。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    function RangeIterator(range){
+      this.range = range;
+      this.current = this.range.low;
+    }
+    RangeIterator.prototype.next = function(){
+      if (this.current &amp;gt; this.range.high)
+        throw StopIteration;
+      else
+        return this.current++;
+    };
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;我们的 &lt;code&gt;RangeIterator&lt;/code&gt; 通过 range 实例来实例化，同时维持一个 &lt;code&gt;current&lt;/code&gt; 属性来跟踪当前序列的位置。&lt;/p&gt;
+
+&lt;p&gt;最后，为了让 &lt;code&gt;RangeIterator&lt;/code&gt; 可以和 &lt;code&gt;Range&lt;/code&gt; 结合起来，我们需要为 &lt;code&gt;Range&lt;/code&gt; 添加一个特殊的 &lt;code&gt;__iterator__&lt;/code&gt; 方法。当我们试图去迭代一个 &lt;code&gt;Range&lt;/code&gt; 时，它将被调用，而且应该返回一个实现了迭代逻辑的 &lt;code&gt;RangeIterator&lt;/code&gt; 实例。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    Range.prototype.__iterator__ = function(){
+      return new RangeIterator(this);
+    };
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;完成我们的自定义迭代器后，我们就可以迭代一个范围实例：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    var range = new Range(3, 5);
+    for (var i in range)
+      print(i); //输出 3，然后 4，然后 5
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;##生成器：一种更好的方式来构建迭代器&lt;/p&gt;
+
+&lt;p&gt;虽然自定义的迭代器是一种很有用的工具，但是创建它们的时候要仔细规划，因为需要显式的维护它们的内部状态。
+生成器提供了很强大的功能：它允许你定义一个包含自有迭代算法的函数， 同时它可以自动维护自己的状态。&lt;/p&gt;
+
+&lt;p&gt;生成器是可以作为迭代器工厂的特殊函数。如果一个函数包含了一个或多个 &lt;code&gt;yield&lt;/code&gt; 表达式，那么就称它为生成器(译者注：Node.js 还需要在函数名前加 &lt;code&gt;*&lt;/code&gt; 来表示)。&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;注意：只有 HTML 中被包含在 &lt;code&gt;&amp;lt;script type=&amp;quot;application/javascript;version=1.7&amp;quot;&amp;gt;&lt;/code&gt; (或者更高版本)中的代码块才可以使用 &lt;code&gt;yield&lt;/code&gt; 关键字。&lt;a href=&#34;https://developer.mozilla.org/en-US/docs/XUL&#34;&gt;XUL&lt;/a&gt; (XML User Interface Language) 脚本标签不需要指定这个特殊的代码块也可以访问这些特性。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;当一个生成器函数被调用时，函数体不会即刻执行，它会返回一个 generator-iterator 对象。每次调用 generator-iterator 的 &lt;code&gt;next()&lt;/code&gt; 方法，函数体就会执行到下一个 &lt;code&gt;yield&lt;/code&gt; 表达式，然后返回它的结果。当函数结束或者碰到 &lt;code&gt;return&lt;/code&gt; 语句，一个 &lt;code&gt;StopIteration&lt;/code&gt; 异常会被抛出。&lt;/p&gt;
+
+&lt;p&gt;用一个例子来更好的说明：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    function simpleGenerator(){
+      yield &amp;quot;first&amp;quot;;
+      yield &amp;quot;second&amp;quot;;
+      yield &amp;quot;third&amp;quot;;
+      for (var i = 0; i &amp;lt; 3; i++)
+        yield i;
+    }
+    
+    var g = simpleGenerator();
+    print(g.next()); //输出 &amp;quot;first&amp;quot;
+    print(g.next()); //输出 &amp;quot;second&amp;quot;
+    print(g.next()); //输出 &amp;quot;third&amp;quot;
+    print(g.next()); //输出 0
+    print(g.next()); //输出 1
+    print(g.next()); //输出 2
+    print(g.next()); //抛出 StopIteration 异常
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;生成器函数可以被一个类直接的当做 &lt;code&gt;__iterator__&lt;/code&gt; 方法使用，在需要自定义迭代器的地方可以有效的减少代码量。我们使用生成器重写一下 &lt;code&gt;Range&lt;/code&gt; ：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    function Range(low, high){
+      this.low = low;
+      this.high = high;
+    }
+    Range.prototype.__iterator__ = function(){
+      for (var i = this.low; i &amp;lt;= this.high; i++)
+        yield i;
+    };
+    var range = new Range(3, 5);
+    for (var i in range)
+      print(i); //输出 3，然后 4，然后 5
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;不是所有的生成器都会终止，你可以创建一个代表无限序列的生成器。下面的生成器实现一个斐波那契序列，就是每一个元素都是前面两个的和：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    function fibonacci(){
+      var fn1 = 1;
+      var fn2 = 1;
+      while (1) {
+        var current = fn2;
+        fn2 = fn1;
+        fn1 = fn1 + current;
+        yield current;
+      }
+    }
+    
+    var sequence = fibonacci();
+    print(sequence.next()); // 1
+    print(sequence.next()); // 1
+    print(sequence.next()); // 2
+    print(sequence.next()); // 3
+    print(sequence.next()); // 5
+    print(sequence.next()); // 8
+    print(sequence.next()); // 13
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;生成器函数可以带有参数，并且会在第一次调用函数时使用这些参数。生成器可以被终止(引起它抛出 &lt;code&gt;StopIteration&lt;/code&gt; 异常)通过使用 &lt;code&gt;return&lt;/code&gt; 语句。下面的 &lt;code&gt;fibonacci()&lt;/code&gt; 变体带有一个可选的 limit 参数，当条件被触发时终止函数。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    function fibonacci(limit){
+      var fn1 = 1;
+      var fn2 = 1;
+      while(1){
+        var current = fn2;
+        fn2 = fn1;
+        fn1 = fn1 + current;
+        if (limit &amp;amp;&amp;amp; current &amp;gt; limit)
+          return;
+        yield current;
+      }
+    }
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;##生成器高级特性&lt;/p&gt;
+
+&lt;p&gt;生成器可以根据需求计算yield返回值，这使得它可以表示以前昂贵的序列计算需求，甚至是上面所示的无限序列。&lt;/p&gt;
+
+&lt;p&gt;除了 &lt;code&gt;next()&lt;/code&gt; 方法，generator-iterator 对象还有一个 &lt;code&gt;send()&lt;/code&gt; 方法，该方法可以修改生成器的内部状态。传给 &lt;code&gt;send()&lt;/code&gt; 的值将会被当做最后一个 &lt;code&gt;yield&lt;/code&gt; 表达式的结果，并且会暂停生成器。在你使用 &lt;code&gt;send()&lt;/code&gt; 方法传一个指定值前，你必须至少调用一次 &lt;code&gt;next()&lt;/code&gt; 来启动生成器。&lt;/p&gt;
+
+&lt;p&gt;下面的斐波那契生成器使用 &lt;code&gt;send()&lt;/code&gt; 方法来重启序列：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    function fibonacci(){
+      var fn1 = 1;
+      var fn2 = 1;
+      while (1) {
+        var current = fn2;
+        fn2 = fn1;
+        fn1 = fn1 + current;
+        var reset = yield current;
+        if (reset) {
+          fn1 = 1;
+          fn2 = 1;
+        }
+      }
+    }
+    
+    var sequence = fibonacci();
+    print(sequence.next());     //1
+    print(sequence.next());     //1
+    print(sequence.next());     //2
+    print(sequence.next());     //3
+    print(sequence.next());     //5
+    print(sequence.next());     //8
+    print(sequence.next());     //13
+    print(sequence.send(true)); //1
+    print(sequence.next());     //1
+    print(sequence.next());     //2
+    print(sequence.next());     //3
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;注意：有意思的一点是，调用 &lt;code&gt;send(undefined)&lt;/code&gt; 和调用 &lt;code&gt;next()&lt;/code&gt; 是完全同等的。不过，当调用 &lt;code&gt;send()&lt;/code&gt; 方法启动一个新的生成器时，除了 &lt;code&gt;undefined&lt;/code&gt; 其它的值都会抛出一个 &lt;code&gt;TypeError&lt;/code&gt; 异常。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;你可以调用 &lt;code&gt;throw&lt;/code&gt; 方法并且传递一个它应该抛出的异常值来强制生成器抛出一个异常。此异常将从当前上下文抛出并暂停生成器，类似当前的 &lt;code&gt;yield&lt;/code&gt; 执行，只不过换成了 &lt;code&gt;throw value&lt;/code&gt; 语句。&lt;/p&gt;
+
+&lt;p&gt;如果在抛出异常的处理过程中没有遇到 &lt;code&gt;yield&lt;/code&gt; ，该异常将会被传递直到调用 &lt;code&gt;throw()&lt;/code&gt; 方法，并且随后调用 &lt;code&gt;next()&lt;/code&gt; 将会导致 &lt;code&gt;StopIteration&lt;/code&gt; 异常被抛出。&lt;/p&gt;
+
+&lt;p&gt;生成器拥有一个 &lt;code&gt;close()&lt;/code&gt; 方法来强制生成器结束。结束一个生成器会产生如下影响：&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;所有生成器中有效的 &lt;code&gt;finally&lt;/code&gt; 字句将会执行&lt;/li&gt;
+&lt;li&gt;如果 &lt;code&gt;finally&lt;/code&gt; 字句抛出了除 &lt;code&gt;StopIteration&lt;/code&gt; 以外的任何异常，该异常将会被传递到 &lt;code&gt;close()&lt;/code&gt; 方法的调用者&lt;/li&gt;
+&lt;li&gt;生成器会终止&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;##生成器表达式&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://developer.mozilla.org/en/JavaScript/Guide/Predefined_Core_Objects#Array_comprehensions&#34;&gt;数组推导式&lt;/a&gt;的一个明显缺点是，它们会导致整个数组在内存中构造。当输入到推导式的本身是个小数组时它的开销是微不足道的&amp;ndash;但是，当输入数组很大或者创建一个新的昂贵(或者是无限的)数组生成器时就可能出现问题。&lt;/p&gt;
+
+&lt;p&gt;生成器允许对序列延迟计算(lazy computation)，在需要时按需计算元素。生成器表达式在句法上几乎和数组推导式相同&amp;ndash;它用圆括号来代替方括号(而且用 &lt;code&gt;for...in&lt;/code&gt; 代替 &lt;code&gt;for each...in&lt;/code&gt;)&amp;ndash;但是它创建一个生成器而不是数组，这样就可以延迟计算。你可以把它想象成创建生成器的简短语法。&lt;/p&gt;
+
+&lt;p&gt;假设我们有一个迭代器 &lt;code&gt;it&lt;/code&gt; 来迭代一个巨大的整数序列。我们需要创建一个新的迭代器来迭代偶数。一个数组推导式将会在内存中创建整个包含所有偶数的数组：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    var doubles = [i * 2 for (i in it)];
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;而生成器表达式将会创建一个新的迭代器，并且在需要的时候按需来计算偶数值：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    var it2 = (i * 2 for (i in it));
+    print(it2.next());  //it 里面的第一个偶数
+    print(it2.next());  //it 里面的第二个偶数
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;当一个生成器被用做函数的参数，圆括号被用做函数调用，意味着最外层的圆括号可以被省略：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    var result = doSomething(i * 2 for (i in it));
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;hr /&gt;
+
+&lt;p&gt;&lt;a href=&#34;https://github.com/A-limon/pacman&#34;&gt;Pacman&lt;/a&gt; 主题已华丽更新，再次推荐！&lt;/p&gt;</description>
+    </item>
+    
+  </channel>
+</rss>
