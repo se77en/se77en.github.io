@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Pool on 罄竹难书</title>
+    <link>https://se77en.cc/tags/pool/index.xml</link>
+    <description>Recent content in Pool on 罄竹难书</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <atom:link href="https://se77en.cc/tags/pool/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>使用 buffered channel 实现线程安全的 pool</title>
+      <link>https://se77en.cc/2014/%E4%BD%BF%E7%94%A8-buffered-channel-%E5%AE%9E%E7%8E%B0%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8%E7%9A%84-pool/</link>
+      <pubDate>Mon, 14 Jul 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://se77en.cc/2014/%E4%BD%BF%E7%94%A8-buffered-channel-%E5%AE%9E%E7%8E%B0%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8%E7%9A%84-pool/</guid>
+      <description>&lt;h2 id=&#34;概述&#34;&gt;概述&lt;/h2&gt;
+
+&lt;p&gt;&lt;del&gt;我们已经知道 Go 语言提供了 sync.Pool，但是做的不怎么好，所以有必要自己来实现一个 pool。&lt;/del&gt;
+&lt;/p&gt;
+
+&lt;h2 id=&#34;给我看代码&#34;&gt;给我看代码&lt;/h2&gt;
+
+&lt;pre&gt;&lt;code&gt;type Pool struct {
+  pool chan *Client
+}
+
+// 创建一个新的 pool
+func NewPool(max int) *Pool {
+  return &amp;amp;Pool{
+    pool: make(chan *Client, max),
+  }
+}
+
+// 从 pool 里借一个 Client
+func (p *Pool) Borrow() *Client {
+  var cl *Client
+  select {
+  case cl = &amp;lt;-p.pool:
+  default:
+    cl = newClient()
+  }
+  return cl
+}
+
+// 还回去
+func (p *Pool) Return(cl *Client) {
+  select {
+  case p.pool &amp;lt;- cl:
+  default:
+    // let it go, let it go...
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&#34;总结&#34;&gt;总结&lt;/h2&gt;
+
+&lt;p&gt;&lt;del&gt;现在&lt;strong&gt;&lt;em&gt;不要&lt;/em&gt;&lt;/strong&gt;使用 &lt;code&gt;sync.Pool&lt;/code&gt;&lt;/del&gt;&lt;/p&gt;</description>
+    </item>
+    
+  </channel>
+</rss>

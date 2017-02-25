@@ -1,0 +1,89 @@
+	<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-cn" lang="zh-cn">
+<head>
+  <link href="http://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.18.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+
+  
+  <title>Go 语言方法接受者类型的选择 &middot; 罄竹难书</title>
+  
+
+  
+  <link rel="stylesheet" href="https://se77en.cc/css/poole.css">
+  <link rel="stylesheet" href="https://se77en.cc/css/syntax.css">
+  <link rel="stylesheet" href="https://se77en.cc/css/hyde.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=PT+Sans:400,400italic,700|Abril+Fatface">
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  <link href="" rel="alternate" type="application/rss+xml" title="罄竹难书" />
+</head>
+
+	<body class="theme-base-0c ">
+		<div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://se77en.cc/"><h1>罄竹难书</h1></a>
+      <p class="lead">
+       做你喜欢做的事情，任何时候都不会太迟。 
+      </p>
+    </div>
+
+    <ul class="sidebar-nav">
+      <li><a href="/">Home</a> </li>
+      
+    </ul>
+
+    <p>&copy; 2017. All rights reserved. </p>
+  </div>
+</div>
+
+
+		<div class="content container">
+			<div class="post">
+			 	<h1>Go 语言方法接受者类型的选择</h1>
+			  <span class="post-date">Sun, May 4, 2014</span>
+			      <h2 id="概述">概述</h2>
+
+<p>很多人(特别是新手)在写 Go 语言代码时经常会问一个问题，那就是一个方法的接受者类型到底应该是值类型还是指针类型呢，Go 的 wiki 上对这点做了很好的解释，我来翻译一下。
+</p>
+
+<h2 id="何时使用值类型">何时使用值类型</h2>
+
+<ul>
+<li>如果接受者是一个 <code>map</code>，<code>func</code> 或者 <code>chan</code>，使用值类型(因为它们本身就是引用类型)。</li>
+<li>如果接受者是一个 <code>slice</code>，并且方法不执行 <code>reslice</code> 操作，也不重新分配内存给 <code>slice</code>，使用值类型。</li>
+<li>如果接受者是一个小的数组或者原生的值类型结构体类型(比如 <code>time.Time</code> 类型)，而且没有可修改的字段和指针，又或者接受者是一个简单地基本类型像是 <code>int</code> 和 <code>string</code>，使用值类型就好了。</li>
+</ul>
+
+<p>一个值类型的接受者可以减少一定数量的垃圾生成，如果一个值被传入一个值类型接受者的方法，一个栈上的拷贝会替代在堆上分配内存(但不是保证一定成功)，所以在没搞明白代码想干什么之前，别因为这个原因而选择值类型接受者。</p>
+
+<h2 id="何时使用指针类型">何时使用指针类型</h2>
+
+<ul>
+<li>如果方法需要修改接受者，接受者必须是指针类型。</li>
+<li>如果接受者是一个包含了 <code>sync.Mutex</code> 或者类似同步字段的结构体，接受者必须是指针，这样可以避免拷贝。</li>
+<li>如果接受者是一个大的结构体或者数组，那么指针类型接受者更有效率。(多大算大呢？假设把接受者的所有元素作为参数传给方法，如果你觉得参数有点多，那么它就是大)。</li>
+<li>从此方法中并发的调用函数和方法时，接受者可以被修改吗？一个值类型的接受者当方法调用时会创建一份拷贝，所以外部的修改不能作用到这个接受者上。如果修改必须被原始的接受者可见，那么接受者必须是指针类型。</li>
+<li>如果接受者是一个结构体，数组或者 <code>slice</code>，它们中任意一个元素是指针类型而且可能被修改，建议使用指针类型接受者，这样会增加程序的可读性</li>
+</ul>
+
+<p>当你看完这个还是有疑虑，还是不知道该使用哪种接受者，那么记住使用指针接受者。</p>
+
+<h2 id="关于接受者的命名">关于接受者的命名</h2>
+
+<p>社区约定的接受者命名是类型的一个或两个字母的缩写(像 <code>c</code> 或者 <code>cl</code> 对于 <code>Client</code>)。不要使用泛指的名字像是 <code>me</code>，<code>this</code> 或者 <code>self</code>，也不要使用过度描述的名字，最后，如果你在一个地方使用了 <code>c</code>，那么就不要在别的地方使用 <code>cl</code>。</p>
+			</div>
+
+			
+		</div>
+
+  </body>
+</html>

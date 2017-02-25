@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Cors on 罄竹难书</title>
+    <link>https://se77en.cc/tags/cors/index.xml</link>
+    <description>Recent content in Cors on 罄竹难书</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <atom:link href="https://se77en.cc/tags/cors/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>基于 Martini 的跨域资源共享(CORS)</title>
+      <link>https://se77en.cc/2014/%E5%9F%BA%E4%BA%8E-martini-%E7%9A%84%E8%B7%A8%E5%9F%9F%E8%B5%84%E6%BA%90%E5%85%B1%E4%BA%ABcors/</link>
+      <pubDate>Wed, 09 Apr 2014 00:00:00 +0000</pubDate>
+      
+      <guid>https://se77en.cc/2014/%E5%9F%BA%E4%BA%8E-martini-%E7%9A%84%E8%B7%A8%E5%9F%9F%E8%B5%84%E6%BA%90%E5%85%B1%E4%BA%ABcors/</guid>
+      <description>&lt;p&gt;##概述&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://www.w3.org/TR/cors/&#34;&gt;CORS&lt;/a&gt; 的全称是 Cross-Origin Resource Sharing，即：跨域资源共享&lt;/p&gt;
+
+&lt;p&gt;根据我的理解，就是马伊琍和文章结婚了，姚笛就不能和文章结了，如果还想在一起，那就得采用一定的方法，这个方法就是跨域，哦，不对，是当第三者:)
+
+根据维基百科的解释，CORS 是一种机制，这个机制允许一个 Web 页面上 JavaScript 向另外的域发起 XMLHttpRequests 请求，注意不是向该 Web 页面所在域请求。这样的跨域请求，在 CORS 之前，根据同源安全策略是会被浏览器拒绝的。CORS 定义了一种方法，这个方法使浏览器和服务器相互作用来限定是否允许跨域请求。它显然比只有单纯的同源请求有用，而且还比简单的允许所有跨域访问要安全。&lt;/p&gt;
+
+&lt;p&gt;在 CORS 出现之前，已经有了很多种方法来实现跨域访问，其中最有名的就是 JSONP(JSON with Padding)，JSONP 是一种使用 JavaScript 请求其它域服务器的一种通信技术，本质就是利用同源策略的漏洞，一般来说位于 xxoo.se77en.cc 的网页是无法与非 xxoo.se77en.cc 的服务器通信的，但是 HTML 里的 &lt;code&gt;&amp;lt;script&amp;gt;&lt;/code&gt; 元素是一个例外，利用这一例外，可以通过 JavaScript 操作浏览器页面 DOM 来动态创建 Script 对象，再将 Script 的 src 属性指向另一个域的资源，服务器就会将数据伪装成一段 JavaScript 代码来实现跨域目的。不过这种技术只能发起 GET 请求，而且安全隐患极大，因为远程服务器可以发送 JavaScript 代码，所以极易受到跨网站伪造请求(CSRF/XSRF)，所以使用 JSONP 要格外小心。&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;注：目前有个正在进行的计划定义 &lt;a href=&#34;http://json-p.org/&#34;&gt;JSON-P 严格安全子集&lt;/a&gt;，使浏览器可以对 MIME 类别是 &lt;code&gt;application/json-p&lt;/code&gt; 的请求做强制处理，如果不能被解析为严格的 JSON-P，浏览器则会抛出一个错误或者忽略整个响应，目前正确的 JSONP MIME 类型仍然是 &lt;code&gt;application/javascript&lt;/code&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;对比 JSONP 的限制，CORS 的限制主要是浏览器支持的问题(不过已经很不错了，除了万恶的 IE6)：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&#34;https://se77en.cc/img/cors-with-martini-and-golang/cors-in-broswer.png&#34; alt=&#34;cors-in-broswer&#34; /&gt;&lt;/p&gt;
+
+&lt;p&gt;##创建一个 CORS 请求&lt;/p&gt;
+
+&lt;p&gt;完成一个 CORS 需要前后端配合。&lt;/p&gt;
+
+&lt;p&gt;###前端&lt;/p&gt;
+
+&lt;p&gt;对前端而言，基本没什么变化，还是使用 XMLHttpRequest 对象(IE 使用 XDomainRequest)，增加了参数和响应回调，当然如果你用 jQuery 可以不用考虑这么多了。下面用 JavaScript 和 jQuery 分别示例：&lt;/p&gt;
+
+&lt;p&gt;首先是 JavaScript，比较复杂，所以直接用大牛 Nicholas•Zakas 写的帮助方法：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;function createCORSRequest(method, url) {
+  var xhr = new XMLHttpRequest();
+  if (&amp;quot;withCredentials&amp;quot; in xhr) {
+
+    // 检查 XMLHttpRequest 对象是否包含 &amp;quot;withCredentials&amp;quot; 属性
+    // &amp;quot;withCredentials&amp;quot; 只在 XMLHTTPRequest2 对象中存在
+    xhr.open(method, url, true);
+
+  } else if (typeof XDomainRequest != &amp;quot;undefined&amp;quot;) {
+
+    // 否则，检查是否是 XDomainRequest
+    // XDomainRequest 只在 IE 中存在, 所以用 IE 的方式来创建 CORS 请求
+    xhr = new XDomainRequest();
+    xhr.open(method, url);
+
+  } else {
+
+    // 上述都不满足，说明浏览器不支持 CORS
+    xhr = null;
+
+  }
+  return xhr;
+}
+
+var xhr = createCORSRequest(&#39;GET&#39;, url);
+if (!xhr) {
+  throw new Error(&#39;CORS not supported&#39;);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;如果你想要提交 cookies 需要设置 XMLHttpRequest 的 withCredentials 属性为 true：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;xhr.withCredentials = true;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;然后处理服务端的返回结果：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;xhr.onload = function() {
+ var responseText = xhr.responseText;
+ console.log(responseText);
+ // 处理返回结果
+};
+
+xhr.onerror = function() {
+  console.log(&#39;There was an error!&#39;);
+};
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;坑爹的是，浏览器在发生错误时的处理方式并不好，FireFox 对于所有错误返回一个为0的状态值和一个空的信息。浏览器会在 console log 里打印一个错误信息，不过这个信息却不能被 JavaScript 访问。所以处理错误时，你只知道一个错误发生了，别的一概不知。&lt;/p&gt;
+
+&lt;p&gt;前端完整代码如下：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;// 创建 XHR 对象
+function createCORSRequest(method, url) {
+  var xhr = new XMLHttpRequest();
+  if (&amp;quot;withCredentials&amp;quot; in xhr) {
+    // XHR for Chrome/Firefox/Opera/Safari.
+    xhr.open(method, url, true);
+  } else if (typeof XDomainRequest != &amp;quot;undefined&amp;quot;) {
+    // XDomainRequest for IE.
+    xhr = new XDomainRequest();
+    xhr.open(method, url);
+  } else {
+    // 不支持 CORS
+    xhr = null;
+  }
+  return xhr;
+}
+
+
+//创建真正的一个 CORS 请求
+function makeCorsRequest() {
+  var url = &#39;http://ooxx.se77en.cc&#39;;
+
+  var xhr = createCORSRequest(&#39;GET&#39;, url);
+  if (!xhr) {
+    alert(&#39;CORS not supported&#39;);
+    return;
+  }
+
+  // 处理响应
+  xhr.onload = function() {
+    var text = xhr.responseText;
+    alert(&#39;Response from CORS request to &#39; + url);
+  };
+
+  xhr.onerror = function() {
+    alert(&#39;Woops, there was an error making the request.&#39;);
+  };
+
+  xhr.send();
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;###服务端&lt;/p&gt;
+
+&lt;p&gt;对服务端而言，最简单的处理方法就是增加下面一行到你的 Response Header 里：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Access-Control-Allow-Origin: *
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;使用 go 来实现就是：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;func setAllowOrigin(writer http.ResponseWriter, r *http.Request) {
+  writer.Header().Add(&amp;quot;Access-Control-Allow-Origin&amp;quot;, &amp;quot;*&amp;quot;)
+  return
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;当然，如果希望处理 POST，PUT 这类复杂的请求，或者是想要更加精确的控制 CORS，如：允许的域范围，是否允许 Cookie，允许哪些请求方法，那自然处理也会变得复杂一点。&lt;/p&gt;
+
+&lt;p&gt;对于任何非简单请求，浏览器都会先于服务器进行沟通，达成一致后，再发出实际请求。沟通的方式叫做 Preflight(起飞预备)，在发起实际请求前，浏览器首先通过 OPTIONS 方式(这样才能从服务器收到响应)。&lt;/p&gt;
+
+&lt;p&gt;Preflight 请求：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;OPTIONS /cors HTTP/1.1
+Origin: http://ooxx.se77en.cc
+Access-Control-Request-Method: POST, PUT
+Access-Control-Request-Headers: X-Custom-Header
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;Access-Control-Request-Method&lt;/code&gt; 是浏览器要发出的请求类型&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;Access-Control-Request-Headers&lt;/code&gt; 是实际请求发送过来时额外的 Header 类型&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;以上这些参数都是可以用逗号分隔的多值字符串。&lt;/p&gt;
+
+&lt;p&gt;Preflight 响应：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Access-Control-Allow-Origin: http://ooxx.se77en.cc
+Access-Control-Allow-Methods: GET, POST, PUT
+Access-Control-Allow-Headers: X-Custom-Header
+Content-Type: text/html; charset=utf-8
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;Access-Control-Allow-Origin&lt;/code&gt; 是 CORS 响应的标配&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;Access-Control-Allow-Methods&lt;/code&gt; 和 &lt;code&gt;Access-Control-Allow-Headers&lt;/code&gt; 是服务器支持的方法和头信息，值得注意的是，这里应该填写全集，而非对应 Preflight 请求里的项目&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;此外还有一些可选项：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;Access-Control-Max-Age&lt;/code&gt; 是告诉浏览器多少秒以内，不再需要请求 Preflight&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;Access-Control-Allow-Credentials&lt;/code&gt; 是告诉浏览器是否支持 Cookie，对应上面&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Preflight 沟通失败：&lt;/p&gt;
+
+&lt;p&gt;如果 Preflight 发送过来的请求权限超过了服务器所支持的，回复的方法是忽略掉 &lt;code&gt;Access-Control-Allow-Origin&lt;/code&gt; 即可，就像一个普通的 HTTP 200 返回，这样浏览器就不会发起实际请求了：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Content-Type: text/html; charset=utf-8
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;沟通成功后的实际请求和响应：&lt;/p&gt;
+
+&lt;p&gt;当浏览器发起 Preflight，并确认服务器支持 CORS 无误，就可以发起实际请求步骤&lt;/p&gt;
+
+&lt;p&gt;实际请求：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;POST /cors HTTP/1.1
+Origin: http://ooxx.se77en.cc
+Host: xxoo.wisteria.io
+X-Custom-Header: value
+Accept-Language: en-US
+Connection: keep-alive
+User-Agent: Mozilla/5.0...
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;实际响应：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Access-Control-Allow-Origin: http://ooxx.se77en.cc
+Content-Type: text/html; charset=utf-8
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;交互过程：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&#34;https://se77en.cc/img/cors-with-martini-and-golang/cors_flow.png&#34; alt=&#34;cors_flow&#34; /&gt;&lt;/p&gt;
+
+&lt;p&gt;服务端响应流程图：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&#34;https://se77en.cc/img/cors-with-martini-and-golang/cors_server_flowchart.png&#34; alt=&#34;cors_server_flowchart&#34; /&gt;&lt;/p&gt;
+
+&lt;p&gt;###如何用 Go 语言实现？&lt;/p&gt;
+
+&lt;p&gt;按照上述过程，首先判断是 Preflight 还是 Actual Request：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;func (cors *Cors) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+  if origin := r.Header.Get(&amp;quot;Origin&amp;quot;); origin == &amp;quot;&amp;quot; {
+      cors.corsNotValid(w, r)
+      return
+  } else if r.Method != &amp;quot;OPTIONS&amp;quot; {
+      //actual request.
+      cors.actualRequest(w, r)
+      return
+  } else if acrm := r.Header.Get(&amp;quot;Access-Control-Request-Method&amp;quot;); acrm == &amp;quot;&amp;quot; {
+      //actual request.
+      cors.actualRequest(w, r)
+      return
+  } else {
+      //preflight request.
+      cors.preflightRequest(w, r)
+      return
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;###在 Martini 中实现&lt;/p&gt;
+
+&lt;p&gt;上面代码只是说明意图，下面我们来示范一下 CORS 在 Martini 中的应用。&lt;/p&gt;
+
+&lt;p&gt;首先是页面所在域，假设为 xxoo.wisteria.io&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;!DOCTYPE html&amp;gt;
+&amp;lt;html&amp;gt;
+&amp;lt;head&amp;gt;
+  &amp;lt;title&amp;gt;&amp;lt;/title&amp;gt;
+  &amp;lt;meta charset=&amp;quot;utf-8&amp;quot;&amp;gt;
+  &amp;lt;script src=&amp;quot;http://cdn.staticfile.org/jquery/1.8.2/jquery.min.js&amp;quot;&amp;gt;&amp;lt;/script&amp;gt;
+  &amp;lt;script type=&amp;quot;text/javascript&amp;quot;&amp;gt;
+    $(function() {
+      $(&amp;quot;#btn&amp;quot;).click(function(e){
+        e.preventDefault();  //感谢 @A-limon 提醒
+        var btx = $(&amp;quot;#btx&amp;quot;).val();
+        var url = &amp;quot;http://ooxx.se77en.cc/cors&amp;quot;;
+        $.ajax(url, {
+          type:&amp;quot;POST&amp;quot;,
+          data:{&amp;quot;value&amp;quot;:btx},
+          dataType:&amp;quot;json&amp;quot;,
+          xhrFields:{
+            withCredentials:false
+          },
+          success:function(data){alert(data.msg);},
+          error:function(){alert(&amp;quot;errror&amp;quot;);}
+        });
+      });
+    });
+  &amp;lt;/script&amp;gt;
+&amp;lt;/head&amp;gt;
+&amp;lt;body&amp;gt;
+  &amp;lt;h1&amp;gt;CORS&amp;lt;/h1&amp;gt;
+  &amp;lt;form&amp;gt;
+    &amp;lt;textarea id=&amp;quot;btx&amp;quot; cols=&amp;quot;30&amp;quot; rows=&amp;quot;10&amp;quot;&amp;gt;&amp;lt;/textarea&amp;gt;&amp;lt;br /&amp;gt;
+    &amp;lt;button id=&amp;quot;btn&amp;quot;&amp;gt;submit&amp;lt;/button&amp;gt;
+  &amp;lt;/form&amp;gt;
+&amp;lt;/body&amp;gt;
+&amp;lt;/html&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;接下来是服务器所在域，假设为 ooxx.se77en.cc&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;package main
+
+import (
+	&amp;quot;github.com/go-martini/martini&amp;quot;
+	&amp;quot;github.com/martini-contrib/binding&amp;quot;
+	&amp;quot;github.com/martini-contrib/cors&amp;quot;
+)
+
+type xxoo struct {
+	Value string `form:&amp;quot;value&amp;quot;`
+}
+
+func main() {
+	m := martini.Classic()
+	m.Use(cors.Allow(&amp;amp;cors.Options{
+		AllowOrigins:     []string{&amp;quot;http://xxoo.wisteria.io&amp;quot;},
+		AllowMethods:     []string{&amp;quot;POST&amp;quot;},
+		AllowHeaders:     []string{&amp;quot;Origin&amp;quot;, &amp;quot;x-requested-with&amp;quot;, &amp;quot;Content-Type&amp;quot;, &amp;quot;Content-Range&amp;quot;, &amp;quot;Content-Disposition&amp;quot;, &amp;quot;Content-Description&amp;quot;},
+		ExposeHeaders:    []string{&amp;quot;Content-Length&amp;quot;},
+		AllowCredentials: false,
+	}))
+
+	m.Post(&amp;quot;/cors&amp;quot;, binding.Form(xxoo{}), func(ooxx xxoo, writer http.ResponseWriter) (int, string) {
+		writer.Header().Set(&amp;quot;Content-Type&amp;quot;, &amp;quot;application/json&amp;quot;)
+		log.Println(&amp;quot;******* &amp;quot; + ooxx.Value + &amp;quot; *******&amp;quot;)
+		return http.StatusOK, `{&amp;quot;msg&amp;quot;:&amp;quot;hello cors&amp;quot;}`
+	})
+	
+  m.Run()
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;我们使用了 Martini 的一个叫 cors 的插件，可以看到 Martini 的 cors 插件已经为我们做了很多工作，详细说明请参见 &lt;a href=&#34;https://github.com/martini-contrib/cors#usage&#34;&gt;cors 文档&lt;/a&gt;。&lt;/p&gt;
+
+&lt;p&gt;##感谢&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;&lt;a href=&#34;http://en.wikipedia.org/wiki/Cross-origin_resource_sharing&#34;&gt;http://en.wikipedia.org/wiki/Cross-origin_resource_sharing&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://en.wikipedia.org/wiki/JSONP&#34;&gt;http://en.wikipedia.org/wiki/JSONP&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://www.html5rocks.com/en/tutorials/cors/&#34;&gt;http://www.html5rocks.com/en/tutorials/cors/&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://semicircle.github.io/blog/2013/09/29/go-with-cors/&#34;&gt;http://semicircle.github.io/blog/2013/09/29/go-with-cors/&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://client.cors-api.appspot.com/client&#34;&gt;http://client.cors-api.appspot.com/client&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;http://enable-cors.org/&#34;&gt;http://enable-cors.org/&lt;/a&gt;&lt;/li&gt;
+&lt;/ol&gt;</description>
+    </item>
+    
+  </channel>
+</rss>

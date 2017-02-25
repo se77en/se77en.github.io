@@ -1,0 +1,517 @@
+	<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-cn" lang="zh-cn">
+<head>
+  <link href="http://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.18.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+
+  
+  <title>Go 语言的并发模型--通过通信来共享内存 &middot; 罄竹难书</title>
+  
+
+  
+  <link rel="stylesheet" href="https://se77en.cc/css/poole.css">
+  <link rel="stylesheet" href="https://se77en.cc/css/syntax.css">
+  <link rel="stylesheet" href="https://se77en.cc/css/hyde.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=PT+Sans:400,400italic,700|Abril+Fatface">
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  <link href="" rel="alternate" type="application/rss+xml" title="罄竹难书" />
+</head>
+
+	<body class="theme-base-0c ">
+		<div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://se77en.cc/"><h1>罄竹难书</h1></a>
+      <p class="lead">
+       做你喜欢做的事情，任何时候都不会太迟。 
+      </p>
+    </div>
+
+    <ul class="sidebar-nav">
+      <li><a href="/">Home</a> </li>
+      
+    </ul>
+
+    <p>&copy; 2017. All rights reserved. </p>
+  </div>
+</div>
+
+
+		<div class="content container">
+			<div class="post">
+			 	<h1>Go 语言的并发模型--通过通信来共享内存</h1>
+			  <span class="post-date">Tue, Apr 8, 2014</span>
+			      <p>##概述</p>
+
+<p>我一直在找一种好的方法来解释 go 语言的<a href="http://golang.org/doc/effective_go.html#concurrency">并发模型</a>：
+&gt; 不要通过共享内存来通信，相反，应该通过通信来共享内存</p>
+
+<p>但是没有发现一个好的解释来满足我下面的需求：</p>
+
+<ul>
+<li>通过一个例子来说明最初的问题</li>
+<li>提供一个共享内存的解决方案</li>
+<li>提供一个通过通信的解决方案</li>
+</ul>
+
+<p>这篇文章我就从这三个方面来做出解释。</p>
+
+<p>读过这篇文章后你应该会了解<strong><em>通过通信来共享内存</em></strong>的模型，以及它和<strong><em>通过共享内存来通信</em></strong>的区别，你还将看到如何分别通过这两种模型来解决访问和修改共享资源的问题。
+
+##前提</p>
+
+<p>设想一下我们要访问一个银行账号：</p>
+
+<pre><code>type Account interface {
+  Withdraw(uint)
+  Deposit(uint)
+  Balance() int
+}
+
+type Bank struct {
+  account Account
+}
+
+func NewBank(account Account) *Bank {
+  return &amp;Bank{account: account}
+}
+
+func (bank *Bank) Withdraw(amount uint, actor_name string) {
+  fmt.Println(&quot;[-]&quot;, amount, actor_name)
+  bank.account.Withdraw(amount)
+}
+
+func (bank *Bank) Deposit(amount uint, actor_name string) {
+  fmt.Println(&quot;[+]&quot;, amount, actor_name)
+  bank.account.Deposit(amount)
+}
+
+func (bank *Bank) Balance() int {
+  return bank.account.Balance()
+}
+</code></pre>
+
+<p>因为 <code>Account</code> 是一个接口，所以我们提供一个简单的实现：</p>
+
+<pre><code>type SimpleAccount struct{
+  balance int
+}
+
+func NewSimpleAccount(balance int) *SimpleAccount {
+  return &amp;SimpleAccount{balance: balance}
+}
+
+func (acc *SimpleAccount) Deposit(amount uint) {
+  acc.setBalance(acc.balance + int(amount))
+}
+
+func (acc *SimpleAccount) Withdraw(amount uint) {
+  if acc.balance &gt;= int(amount) {
+    acc.setBalance(acc.balance - int(amount))
+  } else {
+    panic(&quot;杰克穷死&quot;)
+  }
+}
+
+func (acc *SimpleAccount) Balance() int {
+  return acc.balance
+}
+
+func (acc *SimpleAccount) setBalance(balance int) {
+  acc.add_some_latency()  //增加一个延时函数，方便演示
+  acc.balance = balance
+}
+
+func (acc *SimpleAccount) add_some_latency() {
+  &lt;-time.After(time.Duration(rand.Intn(100)) * time.Millisecond)
+}
+</code></pre>
+
+<p>你可能注意到了 <code>balance</code> 没有被直接修改，而是被放到了  <code>setBalance</code> 方法里进行修改。这样设计是为了更好的描述问题。稍后我会做出解释。</p>
+
+<p>把上面所有部分弄好以后我们就可以像下面这样使用它啦：</p>
+
+<pre><code>func main() {
+  balance := 80
+  b := NewBank(NewSimpleAccount(balance))
+  
+  fmt.Println(&quot;初始化余额&quot;, b.Balance())
+  
+  b.Withdraw(30, &quot;马伊琍&quot;)
+  
+  fmt.Println(&quot;-----------------&quot;)
+  fmt.Println(&quot;剩余余额&quot;, b.Balance())
+}
+</code></pre>
+
+<p>运行上面的代码会输出：</p>
+
+<pre><code>初始化余额 80
+[-] 30 马伊琍
+-----------------
+剩余余额 50
+</code></pre>
+
+<p>没错！</p>
+
+<p>不错在现实生活中，一个银行账号可以有很多个附属卡，不同的附属卡都可以对同一个账号进行存取钱，所以我们来修改一下代码：</p>
+
+<pre><code>func main() {
+  balance := 80
+  b := NewBank(NewSimpleAccount(balance))
+  
+  fmt.Println(&quot;初始化余额&quot;, b.Balance())
+  
+  done := make(chan bool)
+  
+  go func() { b.Withdraw(30, &quot;马伊琍&quot;); done &lt;- true }()
+  go func() { b.Withdraw(10, &quot;姚笛&quot;); done &lt;- true }()
+  
+  //等待 goroutine 执行完成
+  &lt;-done
+  &lt;-done
+  
+  fmt.Println(&quot;-----------------&quot;)
+  fmt.Println(&quot;剩余余额&quot;, b.Balance())
+}
+</code></pre>
+
+<p>这儿两个附属卡并发的从账号里取钱，来看看输出结果：</p>
+
+<pre><code>初始化余额 80
+[-] 30 马伊琍
+[-] 10 姚笛
+-----------------
+剩余余额 70
+</code></pre>
+
+<p>这下把文章高兴坏了:)</p>
+
+<p>结果当然是错误的，剩余余额应该是40而不是70，那么让我们看看到底哪儿出问题了。</p>
+
+<p>##问题</p>
+
+<p>当并发访问共享资源时，无效状态有很大可能会发生。</p>
+
+<p>在我们的例子中，当两个附属卡同一时刻从同一个账号取钱后，我们最后得到银行账号(即共享资源)错误的剩余余额(即无效状态)。</p>
+
+<p>我们来看一下执行时候的情况：</p>
+
+<pre><code>                 处理情况
+             --------------
+             _马伊琍_|_姚笛_
+ 1. 获取余额     80  |  80
+ 2. 取钱       -30  | -10
+ 3. 当前剩余     50  |  70
+                ... | ...
+ 4. 设置余额     50  ?  70  //该先设置哪个好呢？
+ 5. 后设置的生效了
+             --------------
+ 6. 剩余余额        70
+</code></pre>
+
+<p>上面 <code>...</code> 的地方描述了我们 <code>add_some_latency</code> 实现的延时状况，现实世界经常发生延迟情况。所以最后的剩余余额就由最后设置余额的那个附属卡决定。</p>
+
+<p>##解决办法</p>
+
+<p>我们通过两种方法来解决这个问题：</p>
+
+<ul>
+<li>共享内存的解决方案</li>
+<li>通过通信的解决方案</li>
+</ul>
+
+<p>所有的解决方案都是简单的封装了一下 <code>SimpleAccount</code> 来实现保护机制。</p>
+
+<p>###共享内存的解决方案</p>
+
+<p>又叫 “通过共享内存来通信”。</p>
+
+<p>这种方案暗示了使用锁机制来预防同时访问和修改共享资源。锁告诉其它处理程序这个资源已经被一个处理程序占用了，因此别的处理程序需要排队直到当前处理程序处理完毕。</p>
+
+<p>让我们来看看 <code>LockingAccount</code> 是怎么实现的：</p>
+
+<pre><code>type LockingAccount struct {
+  lock    sync.Mutex
+  account *SimpleAccount
+}
+
+//封装一下 SimpleAccount
+func NewLockingAccount(balance int) *LockingAccount {
+  return &amp;LockingAccount{account: NewSimpleAccount(balance)}
+}
+
+func (acc *LockingAccount) Deposit(amount uint) {
+  acc.lock.Lock()
+  defer acc.lock.Unlock()
+  acc.account.Deposit(amount)
+}
+
+func (acc *LockingAccount) Withdraw(amount uint) {
+  acc.lock.Lock()
+  defer acc.lock.Unlock()
+  acc.account.Withdraw(amount)
+}
+
+func (acc *LockingAccount) Balance() int {
+  acc.lock.Lock()
+  defer acc.lock.Unlock()
+  return acc.account.Balance()
+}
+</code></pre>
+
+<p>直接明了！注意 <code>lock sync.Lock</code>，<code>lock.Lock()</code>，<code>lock.Unlock()</code>。</p>
+
+<p>这样每次一个附属卡访问银行账号(即共享资源)，这个附属卡会自动获得锁直到最后操作完毕。</p>
+
+<p>我们的 <code>LockingAccount</code> 像下面这样使用：</p>
+
+<pre><code>func main() {
+  balance := 80
+  b := NewBank(NewLockingAccount(balance))
+  
+  fmt.Println(&quot;初始化余额&quot;, b.Balance())
+  
+  done := make(chan bool)
+  
+  go func() { b.Withdraw(30, &quot;马伊琍&quot;); done &lt;- true }()
+  go func() { b.Withdraw(10, &quot;姚笛&quot;); done &lt;- true }()
+  
+  //等待 goroutine 执行完成
+  &lt;-done
+  &lt;-done
+  
+  fmt.Println(&quot;-----------------&quot;)
+  fmt.Println(&quot;剩余余额&quot;, b.Balance())
+}
+</code></pre>
+
+<p>输出的结果是：</p>
+
+<pre><code>初始化余额 80
+[-] 30 马伊琍
+[-] 10 姚笛
+-----------------
+剩余余额 40
+</code></pre>
+
+<p>现在结果正确了！</p>
+
+<p>在这个例子中第一个处理程序加锁后独享共享资源，其它处理程序只能等待它执行完成。</p>
+
+<p>我们接着看一下执行时的情况，假设马伊琍先拿到了锁：</p>
+
+<pre><code>                            处理过程
+                        ________________
+                        _马伊琍_|__姚笛__
+        加锁                   &gt;&lt;
+        得到余额            80  |
+        取钱               -30  |
+        当前余额            50  |
+                           ... |
+        设置余额            50  |
+        解除锁                 &lt;&gt;
+                               |
+        当前余额                50
+                               |
+        加锁                   &gt;&lt;
+        得到余额                |  50
+        取钱                    | -10
+        当前余额                |  40
+                               |  ...
+        设置余额                |  40
+        解除锁                  &lt;&gt;
+                        ________________
+        剩余余额                40
+
+</code></pre>
+
+<p>现在我们的处理程序在访问共享资源时相继的产生了正确的结果。</p>
+
+<p>###通过通信的解决方案</p>
+
+<p>又叫 “通过通信来共享内存”。</p>
+
+<p>现在账号被命名为 <code>ConcurrentAccount</code>，像下面这样来实现：</p>
+
+<pre><code>type ConcurrentAccount struct {
+  account     *SimpleAccount
+  deposits    chan uint
+  withdrawals chan uint
+  balances    chan chan int
+}
+
+func NewConcurrentAccount(amount int) *ConcurrentAccount{
+  acc := &amp;ConcurrentAccount{
+    account :    &amp;SimpleAccount{balance: amount},
+    deposits:    make(chan uint),
+    withdrawals: make(chan uint),
+    balances:    make(chan chan int),
+  }
+  acc.listen()
+  
+  return acc
+}
+
+func (acc *ConcurrentAccount) Balance() int {
+  ch := make(chan int)
+  acc.balances &lt;- ch
+  return &lt;-ch
+}
+
+func (acc *ConcurrentAccount) Deposit(amount uint) {
+  acc.deposits &lt;- amount
+}
+
+func (acc *ConcurrentAccount) Withdraw(amount uint) {
+  acc.withdrawals &lt;- amount
+}
+
+func (acc *ConcurrentAccount) listen() {
+  go func() {
+    for {
+      select {
+      case amnt := &lt;-acc.deposits:
+        acc.account.Deposit(amnt)
+      case amnt := &lt;-acc.withdrawals:
+        acc.account.Withdraw(amnt)
+      case ch := &lt;-acc.balances:
+        ch &lt;- acc.account.Balance()
+      }
+    }
+  }()
+}
+</code></pre>
+
+<p><code>ConcurrentAccount</code> 同样封装了 <code>SimpleAccount</code> ，然后增加了通信通道</p>
+
+<p>调用代码和加锁版本的一样，这里就不写了，唯一不一样的就是初始化银行账号的时候：</p>
+
+<pre><code>b := NewBank(NewConcurrentAccount(balance))
+</code></pre>
+
+<p>运行产生的结果和加锁版本一样：</p>
+
+<pre><code>初始化余额 80
+[-] 30 马伊琍
+[-] 10 姚笛
+-----------------
+剩余余额 40
+</code></pre>
+
+<p>让我们来深入了解一下细节。</p>
+
+<p>###通过通信来共享内存是如何工作的</p>
+
+<p>一些基本注意点：</p>
+
+<ul>
+<li>共享资源被封装在一个控制流程中。
+结果就是资源成为了非共享状态。没有处理程序能够直接访问或者修改资源。你可以看到访问和修改资源的方法实际上并没有执行任何改变。
+<br /></li>
+</ul>
+
+<pre><code>  func (acc *ConcurrentAccount) Balance() int {
+    ch := make(chan int)
+    acc.balances &lt;- ch
+    balance := &lt;-ch
+    return balance
+  }
+  func (acc *ConcurrentAccount) Deposit(amount uint) {
+    acc.deposits &lt;- amount
+  }
+
+  func (acc *ConcurrentAccount) Withdraw(amount uint) {
+    acc.withdrawals &lt;- amount
+  }
+</code></pre>
+
+<ul>
+<li>访问和修改是通过消息和控制流程通信。</li>
+<li>在控制流程中任何访问和修改的动作都是相继发生的。
+当控制流程接收到访问或者修改的请求后会立即执行相关动作。让我们仔细看看这个流程：
+<br /></li>
+</ul>
+
+<pre><code>  func (acc *ConcurrentAccount) listen() {
+    // 执行控制流程
+    go func() {
+      for {
+        select {
+        case amnt := &lt;-acc.deposits:
+          acc.account.Deposit(amnt)
+        case amnt := &lt;-acc.withdrawals:
+          acc.account.Withdraw(amnt)
+        case ch := &lt;-acc.balances:
+          ch &lt;- acc.account.Balance()
+        }
+      }
+    }()
+  }
+</code></pre>
+
+<p><a href="http://golang.org/ref/spec#Select_statements">select</a> 不断地从各个通道中取出消息，每个通道都跟它们所要执行的操作相一致。</p>
+
+<p>重要的一点是：在 <code>select</code> 声明内部的一切都是相继执行的(在同一个处理程序中排队执行)。一次只有一个事件(在通道中接受或者发送)发生，这样就保证了同步访问共享资源。</p>
+
+<p>领会这个有一点绕。</p>
+
+<p>让我们用例子来看看 <code>Balance()</code> 的执行情况：</p>
+
+<pre><code>         一张附属卡的流程      |   控制流程 
+      ----------------------------------------------
+
+ 1.     b.Balance()         |
+ 2.             ch -&gt; [acc.balances]-&gt; ch
+ 3.             &lt;-ch        |  balance = acc.account.Balance()
+ 4.     return  balance &lt;-[ch]&lt;- balance
+ 5                          |
+</code></pre>
+
+<p>这两个流程都干了点什么呢？</p>
+
+<p>###附属卡的流程</p>
+
+<ol>
+<li>调用 <code>b.Balance()</code></li>
+<li>新建通道 <code>ch</code>，将 <code>ch</code> 通道塞入通道 <code>acc.balances</code> 中与控制流程通信，这样控制流程也可以通过 <code>ch</code> 来返回余额</li>
+<li>等待 <code>&lt;-ch</code> 来取得要接受的余额</li>
+<li>接受余额</li>
+<li>继续</li>
+</ol>
+
+<p>###控制流程</p>
+
+<ol>
+<li>空闲或者处理</li>
+<li>通过 <code>acc.balances</code> 通道里面的 <code>ch</code> 通道来接受余额请求</li>
+<li>取得真正的余额值</li>
+<li>将余额值发送到 <code>ch</code> 通道</li>
+<li>准备处理下一个请求</li>
+</ol>
+
+<p>控制流程每次只处理一个 <code>事件</code>。这也就是为什么除了描述出来的这些以外，第2-4步没有别的操作执行。</p>
+
+<p>##总结</p>
+
+<p>这篇博客描述了问题以及问题的解决办法，但那时没有深入去探究不同解决办法的优缺点。</p>
+
+<p>其实这篇文章的例子更适合用 mutex，因为这样代码更加清晰。</p>
+
+<p>最后，请毫无顾忌的指出我的错误！</p>
+			</div>
+
+			
+		</div>
+
+  </body>
+</html>

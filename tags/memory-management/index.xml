@@ -1,0 +1,501 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Memory Management on 罄竹难书</title>
+    <link>https://se77en.cc/tags/memory-management/index.xml</link>
+    <description>Recent content in Memory Management on 罄竹难书</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <atom:link href="https://se77en.cc/tags/memory-management/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>探索 Rust 的所有权系统(Ownership System)</title>
+      <link>https://se77en.cc/2015/%E6%8E%A2%E7%B4%A2-rust-%E7%9A%84%E6%89%80%E6%9C%89%E6%9D%83%E7%B3%BB%E7%BB%9Fownership-system/</link>
+      <pubDate>Wed, 28 Jan 2015 00:00:00 +0000</pubDate>
+      
+      <guid>https://se77en.cc/2015/%E6%8E%A2%E7%B4%A2-rust-%E7%9A%84%E6%89%80%E6%9C%89%E6%9D%83%E7%B3%BB%E7%BB%9Fownership-system/</guid>
+      <description>&lt;h2 id=&#34;主要内容&#34;&gt;主要内容&lt;/h2&gt;
+
+&lt;p&gt;这两个部分的介绍是为了给那些了解 rust 基本语法，写过一些小的 demo 代码，但却不是很清楚 &lt;code&gt;ownership&lt;/code&gt; 和 &lt;code&gt;borrowing&lt;/code&gt; 机制的码农看的。&lt;/p&gt;
+
+&lt;p&gt;我们从最简单的开始，然后一步一步逐渐复杂化，探索每一个细节。这个介绍文章假设你非常了解 &lt;code&gt;let&lt;/code&gt;，&lt;code&gt;fn&lt;/code&gt;，&lt;code&gt;struct&lt;/code&gt;，&lt;code&gt;trait&lt;/code&gt; 和 &lt;code&gt;impl&lt;/code&gt; 概念。
+
+我们的目标是学习如果写 rust 代码，而且在写的过程中不要碰到有关 &lt;code&gt;ownership&lt;/code&gt; 和 &lt;code&gt;borrowing&lt;/code&gt; 的墙。&lt;/p&gt;
+
+&lt;p&gt;首先是 &lt;em&gt;ownership&lt;/em&gt; 部分：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;在简单介绍之后&lt;/li&gt;
+&lt;li&gt;学习 &lt;code&gt;Copy Traits&lt;/code&gt;，然后&lt;/li&gt;
+&lt;li&gt;学习 不可变(&lt;code&gt;Immutable&lt;/code&gt;)&lt;/li&gt;
+&lt;li&gt;和 可变(&lt;code&gt;Mutable&lt;/code&gt;) 所有权规则&lt;/li&gt;
+&lt;li&gt;然后介绍一下所有权系统的强大之处&lt;/li&gt;
+&lt;li&gt;体现在内存管理方面&lt;/li&gt;
+&lt;li&gt;垃圾回收方面&lt;/li&gt;
+&lt;li&gt;以及并发方面&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2 id=&#34;先决条件-你应该预先知道的&#34;&gt;先决条件 &amp;ndash; 你应该预先知道的&lt;/h2&gt;
+
+&lt;p&gt;基于 作用域/栈 的内存管理很简单，因为我们已经很熟悉它的工作方式了。比如下面的代码，&lt;code&gt;i&lt;/code&gt; 在 &lt;code&gt;main&lt;/code&gt; 函数的最后发生了什么？&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn main() {
+    let i = 5;
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;它离开了作用域然后释放了，对吗？&lt;/p&gt;
+
+&lt;p&gt;那如果我们把 &lt;code&gt;i&lt;/code&gt; 传给另一个函数 &lt;code&gt;foo&lt;/code&gt;，它释放了几次？&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn foo(i: i64) {
+    // 干点啥
+}
+
+fn main() {
+    let i = 5;
+    foo(i);  // 调用 foo 函数
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;是的，它释放了两次。第一次是在 &lt;code&gt;foo&lt;/code&gt; 函数结束时候，第二次是在 &lt;code&gt;main&lt;/code&gt; 函数结束之后。如果你修改了 &lt;code&gt;foo&lt;/code&gt;，那么&lt;strong&gt;完全不会影响&lt;/strong&gt; &lt;code&gt;main&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;因为在调用 &lt;code&gt;foo(i)&lt;/code&gt; 的时候值被拷贝了。&lt;/p&gt;
+
+&lt;p&gt;在 Rust 中，就像在 C艹 中(或者其他的语言)，可以使用你的自定义类型来替代 Int。值将会被分配在当前栈，然后在离开作用域的时候被释放。&lt;/p&gt;
+
+&lt;p&gt;然而，Rust 编译器使用了不同的所有权规则，除非类型实现了 &lt;code&gt;Copy&lt;/code&gt; 特质。
+因此，我们先来讨论一下 &lt;code&gt;Copy&lt;/code&gt; 特质，看看它是如何工作的。&lt;/p&gt;
+
+&lt;h2 id=&#34;copy-trait&#34;&gt;Copy Trait&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;Copy&lt;/code&gt; 特质使类型的行为有了同样的方式：它每次赋值或者用作函数参数的时候，内存空间地址会被完整拷贝到另一个内存地址。实现这个特质允许你像使用内建 integer 一样使用你自定义类型。&lt;/p&gt;
+
+&lt;p&gt;内建的类型 &lt;code&gt;i64&lt;/code&gt;(一种类型的 integer) 实现了这个特质，还有&lt;a href=&#34;http://doc.rust-lang.org/std/marker/trait.Copy.html&#34;&gt;很多类型&lt;/a&gt;都实现了它。&lt;/p&gt;
+
+&lt;p&gt;如果我们有一个 &lt;code&gt;Info&lt;/code&gt; 结构体，我们可以通过实现 &lt;code&gt;Copy&lt;/code&gt; 特质来让它可拷贝。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;struct Info {
+    value: i64,
+}
+impl Copy for Info {}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;或者，使用 &lt;code&gt;#[derive(Copy)]&lt;/code&gt; 属性实现同样的功能&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;#[derive(Copy)]
+struct Info {
+    value: i64,
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;没有实现 &lt;code&gt;Copy&lt;/code&gt; 特质的类型将会移动到另一个地址并且服从所有权规则。&lt;/p&gt;
+
+&lt;h2 id=&#34;所有权-ownership&#34;&gt;所有权(Ownership)&lt;/h2&gt;
+
+&lt;p&gt;所有权规则规定：对于一个不可被拷贝的值，在任意一个地方，只能有一个所有者可以&lt;strong&gt;改变&lt;/strong&gt;它。&lt;/p&gt;
+
+&lt;p&gt;因此，如果一个函数有责任删除一个值，它可以确认未来没有其他的所有者会访问，修改或者删除它。&lt;/p&gt;
+
+&lt;p&gt;抽象的概念就说这么多，来看看具体的例子！&lt;/p&gt;
+
+&lt;h3 id=&#34;向-bob-问好-我们的人体模型结构体&#34;&gt;向 Bob 问好，我们的人体模型结构体。。。&lt;/h3&gt;
+
+&lt;p&gt;为了证明数据是如何移动的，我们创建一个新的结构体，叫做 &lt;code&gt;Bob&lt;/code&gt;。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;struct Bob {
+    name: String,
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;在 Bob 的构造方法 &lt;code&gt;new&lt;/code&gt; 中，我们宣布一下他的创建：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;impl Bob {
+    fn new(name: &amp;amp;str) -&amp;gt; Bob {
+        println!(&amp;quot;new bob {:?}&amp;quot;, name);
+        Bob { name: name.to_string() }
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;当 Bob 被销毁时(对不起啦 Bob)，我们通过实现内建的 &lt;code&gt;Drop::drop&lt;/code&gt; 特质来打印一下他的名字：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;impl Drop for Bob {
+    fn drop(&amp;amp;mut self) {
+        println!(&amp;quot;del bob {:?}&amp;quot;, self.name);
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;为了让 bob 的值在打印时候可以格式化，我们试下一下内建的 &lt;code&gt;Show::fmt&lt;/code&gt; 特质方法：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;impl fmt::Show for Bob {
+    fn fmt(&amp;amp;self, f: &amp;amp;mut fmt::Formatter) -&amp;gt; fmt::Result {
+        write!(f, &amp;quot;bob {:?}&amp;quot;, self.name)
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;来测试一下&#34;&gt;来测试一下&lt;/h3&gt;
+
+&lt;p&gt;当我们在 &lt;code&gt;main&lt;/code&gt; 函数中创建 Bob 时，我们得到一个预期的结果：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn main() {
+    Bob::new(&amp;quot;A&amp;quot;);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;new bob &amp;quot;A&amp;quot;
+del bob &amp;quot;A&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;好的，bob 挂了，但是啥时候挂的？&lt;/p&gt;
+
+&lt;p&gt;让我们在函数结尾插入一个 &amp;ldquo;print&amp;rdquo; 语句：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn main () {
+    Bob::new(&amp;quot;A&amp;quot;);
+    println!{&amp;quot;end is near&amp;quot;};
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;new bob &amp;quot;A&amp;quot;
+del bob &amp;quot;A&amp;quot;
+end is near
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;他在函数&lt;strong&gt;结束前&lt;/strong&gt;就已经挂了。返回值并没有被赋值给任何东西，所以编译器调用了 &lt;code&gt;drop&lt;/code&gt; 来在他创建的地方销毁他。&lt;/p&gt;
+
+&lt;p&gt;如果我们绑定返回值给一个变量呢？&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn main() {
+    let bob = Bob::new(&amp;quot;A&amp;quot;)
+    println!(&amp;quot;end is near&amp;quot;);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;new bob &amp;quot;A&amp;quot;
+end is near
+del bob &amp;quot;A&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;有了 &lt;code&gt;let&lt;/code&gt; 绑定，他在函数结束时才会挂，也就是在离开作用域时。所以，编译器&lt;strong&gt;在作用域结束时销毁绑定值&lt;/strong&gt;。&lt;/p&gt;
+
+&lt;h3 id=&#34;销毁它-除非它移动了&#34;&gt;销毁它，除非它移动了&lt;/h3&gt;
+
+&lt;p&gt;值可以被&lt;strong&gt;移动&lt;/strong&gt;到另一个地方，如果它移动了，它不会被销毁！&lt;/p&gt;
+
+&lt;p&gt;那么怎么移动呢？其实也就是简单地把它们&lt;strong&gt;作为值&lt;/strong&gt;传给另一个函数。&lt;/p&gt;
+
+&lt;p&gt;让我们把我们的 bob 值传给一个叫 &lt;code&gt;black_hole&lt;/code&gt; 的函数：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn black_hole(bob: Bob) {
+    println!(&amp;quot;imminent shrinkage {:?}&amp;quot;, bob);
+}
+
+fn main() {
+    let bob = Bob::new(&amp;quot;A&amp;quot;);
+    black_hole(bob);
+    println!(&amp;quot;&amp;quot;end is near);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;new bob &amp;quot;A&amp;quot;
+imminent shrikage bob &amp;quot;A&amp;quot;
+del bob &amp;quot;A&amp;quot;
+end is near
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://dwz.cn/APyM7&#34;&gt;自己试一下&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;bob 在 black_hole 函数里挂了，而不是在 &lt;code&gt;main&lt;/code&gt; 函数的结尾!&lt;/p&gt;
+
+&lt;p&gt;等一下，如果我们把 Bob 传给 black_hole 两次会发生什么呢？&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn main() {
+    let bob = Bob::new(&amp;quot;A&amp;quot;);
+    black_hole(bob);
+    black_hole(bob);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;anon&amp;gt;:35:16: 35:19 error: use of moved value: `bob`
+&amp;lt;anon&amp;gt;:35     black_hole(bob);
+                         ^~~
+&amp;lt;anon&amp;gt;:34:16: 34:19 note: `bob` moved here because it has type `Bob`, which is non-copyable
+&amp;lt;anon&amp;gt;:34     black_hole(bob);
+                         ^~~
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;编译器告诉我们不可以使用已经移动的值，而且做了详细的解释。&lt;/p&gt;
+
+&lt;h3 id=&#34;没有魔法-只是规则而已&#34;&gt;没有魔法 &amp;ndash; 只是规则而已&lt;/h3&gt;
+
+&lt;p&gt;为了实现 “不用垃圾回收机制的内存安全”，编译器不需要追踪你代码里的值。编译器可以通过观测函数体来确定函数需要销毁哪些值。&lt;/p&gt;
+
+&lt;p&gt;如果你知道规则，你也可以简单的做到这些。到目前为止，我们知道了一些规则：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;没有使用的返回值会被销毁&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;所有被绑定到 &lt;code&gt;let&lt;/code&gt; 的值都会在函数结尾处被销毁，除非它被移动了&lt;/strong&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;现在我们知道了，内存安全实际是基于一个值只能有一个所有者。&lt;/p&gt;
+
+&lt;p&gt;然而，到目前为止我们只是讨论了&lt;strong&gt;不可变&lt;/strong&gt;的 &lt;code&gt;let&lt;/code&gt; 绑定 - 当我们的值可变时，规则会变得略微复杂。&lt;/p&gt;
+
+&lt;h2 id=&#34;所有权-可变性&#34;&gt;所有权（可变性）&lt;/h2&gt;
+
+&lt;p&gt;所有的值都可以被改变：我们只需要在变量名和 &lt;code&gt;let&lt;/code&gt; 之间加入 &lt;code&gt;mut&lt;/code&gt;。举个栗子，我们可以改变 bob 的一些地方，比如说名字：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn main() {
+    let mut bob = Bob::new(&amp;quot;A&amp;quot;);
+    bob.name = String::from_str(&amp;quot;mutant&amp;quot;);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;new bob &amp;quot;A&amp;quot;
+del bob &amp;quot;mutant&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;我们以名字 “A” 创建了他，但是以名字 “mutant” 销毁了他。&lt;/p&gt;
+
+&lt;p&gt;如果我们把这个值传给另一个函数 &lt;code&gt;mutate&lt;/code&gt;，我们同样可以把它赋值给 &lt;code&gt;mut&lt;/code&gt; 修饰的变量：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn mutate(value: Bob) {
+    let mut bob = value;
+    bob.name = String::from_str(&amp;quot;mutant&amp;quot;);
+}
+
+fn main() {
+    mutate(Bob::new(&amp;quot;A&amp;quot;));
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;new bob &amp;quot;A&amp;quot;
+del bob &amp;quot;mutant&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;所以，可以在任意时刻改变可变类型的值。&lt;/p&gt;
+
+&lt;p&gt;一些需要了解的知识点：函数参数也可以变成用 mut 修饰的，因为它也是用于绑定的关键字，就像 let 一样。所以上面的例子可以被改写成：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn mutate(mut value: Bob) {  // 在参数名前直接使用 mut
+    value.name = String::from_str(&amp;quot;mutant&amp;quot;);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&#34;替换-mut-修饰的值&#34;&gt;替换 mut 修饰的值&lt;/h3&gt;
+
+&lt;p&gt;如果我们重写 &lt;code&gt;mut&lt;/code&gt; 修饰的值会发生什么？来看看：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn main() {
+    let mut bob = Bob::new(&amp;quot;A&amp;quot;);
+    println!(&amp;quot;&amp;quot;);
+    for &amp;amp;name in [&amp;quot;B&amp;quot;, &amp;quot;C&amp;quot;].iter() {
+        println!(&amp;quot;before overwrite&amp;quot;);
+        bob = Bob::new(name);
+        println!(&amp;quot;after overwrite&amp;quot;);
+        println!(&amp;quot;&amp;quot;);
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;new bob &amp;quot;A&amp;quot;
+
+before overwrite
+new bob &amp;quot;B&amp;quot;
+del bob &amp;quot;A&amp;quot;
+after overwrite
+
+before overwrite
+new bob &amp;quot;C&amp;quot;
+del bob &amp;quot;B&amp;quot;
+after overwrite
+
+del bob &amp;quot;C&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;旧的值被销毁了。新的赋值会在作用域结尾处被销毁 &amp;ndash; 除非它被移动了或者是被再次重写。&lt;/p&gt;
+
+&lt;h3 id=&#34;所有权-可变-规则&#34;&gt;所有权(可变)规则&lt;/h3&gt;
+
+&lt;p&gt;相对于不可变性，可变性只有一条附加规则：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;没有使用的返回值会被销毁&lt;/li&gt;
+&lt;li&gt;所有被绑定到 &lt;code&gt;let&lt;/code&gt; 的值都会在函数结尾处被销毁，除非它被移动了&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;被替换的值将被销毁&lt;/strong&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;很明显了，在 Rust 中，我们可以确定一个值没有所有者或者被引用。&lt;/p&gt;
+
+&lt;h2 id=&#34;所有权系统的威力&#34;&gt;所有权系统的威力&lt;/h2&gt;
+
+&lt;p&gt;刚开始这些所有权规则可能看起来有一些限制性，这仅仅是因为你使用了一套新的规则集。他们实际上并没有任何限制，只是给了我们另外一个基础设施去创建高级别架构。&lt;/p&gt;
+
+&lt;p&gt;这些架构在别的语言中可能很难实现安全性。即使他们做到了安全性，他们也不能保证编译期就确定安全性。&lt;/p&gt;
+
+&lt;p&gt;下面我们来概览一下它们，它们在一个独立的库中。&lt;/p&gt;
+
+&lt;h3 id=&#34;内存分配&#34;&gt;内存分配&lt;/h3&gt;
+
+&lt;p&gt;目前为止我们只讨论了类似 integer 的值，它们存活在&lt;strong&gt;栈&lt;/strong&gt;上。我们的测试人偶 &lt;code&gt;Bob&lt;/code&gt; 就是这样一个类型的值。一些流行的语言也会把值保持在栈上(比如 C# 中的 struct，C艹中非 new 实例化出来的值)，其他大部分语言都不是。&lt;/p&gt;
+
+&lt;p&gt;相反的，一个新的构造对象实例(在很多语言中通过 &lt;code&gt;new&lt;/code&gt; 操作符创建的)在叫做&lt;strong&gt;堆内存&lt;/strong&gt;的地方创建。&lt;/p&gt;
+
+&lt;p&gt;堆内存有很多优点。第一，它不受栈大小的限制。把一个大的结构放到栈上可能会马上溢出。第二，它的内存地址不会改变，不想栈地址。每次一个栈内存上面的值被移动或者拷贝，它所有的比特都会被拷贝到栈的另一个地址。当结构小的时候它是很有效率的(因为这样值会挨着嘛)，不过随着结构变大就会变的很慢。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Box&lt;/strong&gt; 解决了这个问题，处理方法是把我们创建的值移动到&lt;strong&gt;堆&lt;/strong&gt;上，然后在&lt;strong&gt;栈&lt;/strong&gt;上存一个指向堆地址的指针。&lt;/p&gt;
+
+&lt;p&gt;举个栗子，我们像这样创建 &lt;code&gt;Bob&lt;/code&gt; 在堆内存上：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn main() {
+    let bob = Box::new(Bob::new(&amp;quot;A&amp;quot;));
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;new bob A
+del bob A
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;bob&lt;/code&gt; 的返回值类型是 &lt;code&gt;Box&amp;lt;Bob&amp;gt;&lt;/code&gt;。泛型类型使 &lt;code&gt;Bob&lt;/code&gt; 的生命周期被 &lt;code&gt;Box&amp;lt;Bob&amp;gt;&lt;/code&gt; 管理，同时当 &lt;code&gt;Box&lt;/code&gt; 被删除时它也被随之删除。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;Box&lt;/code&gt; 是不可拷贝的，其所有权机制跟上面提到的一样。当它在栈上的生命周期结束时，它的析构方法 &lt;code&gt;drop&lt;/code&gt; 被调用，随后立即调用 &lt;code&gt;Bob&lt;/code&gt; 的析构方法 &lt;code&gt;drop&lt;/code&gt;，同样会清理堆上的内存。&lt;/p&gt;
+
+&lt;p&gt;这些看似琐碎的实现其实是重大的策略。如果我们跟其他语言的解决办法比较，它们大都做了两件事情中的一件。它们或者留给你自己清理内存(用一些讨厌的 &lt;code&gt;delete&lt;/code&gt; 语句，可能忘了调用或者调用多次)，或者依赖垃圾回收机制去跟踪内存指针，当这些指针不被引用时清理内存。&lt;/p&gt;
+
+&lt;p&gt;在 Rust 中，所有权跟踪不会有运行时消耗，而且会在编译器确认正确性。这个简单的通过 &lt;code&gt;Box&lt;/code&gt; 的内存处理方案，小而美，而且经常已经足够用了。&lt;/p&gt;
+
+&lt;p&gt;当它真的不够用时，其它的工具会来帮忙。&lt;/p&gt;
+
+&lt;h2 id=&#34;垃圾回收&#34;&gt;垃圾回收&lt;/h2&gt;
+
+&lt;p&gt;Rust 有足够的低级别(low-level)工具来用一个库的方式实现垃圾回收。最简单的方案已经存在于 Rust 中：基于引用计数(注意：不是自动引用计数)的垃圾回收。&lt;/p&gt;
+
+&lt;p&gt;引用计数的解决方案很容易实现，不过它不是我们所说的真正意义上的垃圾回收。&lt;/p&gt;
+
+&lt;p&gt;因此在 Rust 中我们给它起了个新名字叫做：*共享所有权*。&lt;code&gt;std::rc&lt;/code&gt; 库提供了在不容 &lt;code&gt;Rc&lt;/code&gt; 处理者(handler)中共享同一个值所有权的机制。只要有一个处理者作用于这个值上，这个值就会保持存活。&lt;/p&gt;
+
+&lt;p&gt;举个栗子，我们可以创建一个被 &lt;code&gt;Rc&lt;/code&gt; 处理者所管理的 bob 实例：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;use std::rc::Rc;
+
+fn main() {
+    let bob = Rc::new(Bob::new(&amp;quot;A&amp;quot;));
+    println!(&amp;quot;{:?}&amp;quot;, bob);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;new bob A
+Rc(bob A)
+del bob A
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://dwz.cn/APyxG&#34;&gt;自己试一下&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;我们可以改变 &lt;code&gt;black_hole&lt;/code&gt; 函数来接受一个 &lt;code&gt;Rc&amp;lt;Bob&amp;gt;&lt;/code&gt; 然后检查是否被销毁。但是我们可以更简单的让它接受&lt;strong&gt;任意类型&lt;/strong&gt;的 &lt;code&gt;T&lt;/code&gt; 然后实现 &lt;code&gt;Show&lt;/code&gt; 特质来方便打印。让我们来让它泛型话：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn black_hole&amp;lt;T&amp;gt;(value: T) where T: fmt::Show {
+    println!(&amp;quot;imminent shrinkage {:?}&amp;quot;, value);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;工作方式一样，不过我们以后有新的类型改变时就不需要改变这个函数啦~&lt;/p&gt;
+
+&lt;p&gt;现在，发送 &lt;code&gt;Rc&amp;lt;Bob&amp;gt;&lt;/code&gt; 到 black_hole！&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn main() {
+    let bob = Rc::new(Bob::new(&amp;quot;A&amp;quot;));
+    black_hole(bob.clone());
+    print!(&amp;quot;{:?}&amp;quot;, bob);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;new bob A
+imminent shrinkage Rc(bob A)
+Rc(bob A)
+del bob A
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://dwz.cn/APxTk&#34;&gt;自己试一下&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;它在 black_hole 里存活了下来！不过它是怎么工作的？&lt;/p&gt;
+
+&lt;p&gt;一旦被 &lt;code&gt;Rc&lt;/code&gt; 处理，那么其它地方只要有任何 &lt;code&gt;Rc&lt;/code&gt; &lt;strong&gt;克隆&lt;/strong&gt;存在，bob 就会一直存活。&lt;code&gt;Rc&lt;/code&gt; 在内部使用 &lt;code&gt;Box&lt;/code&gt; 把值同引用计数一起放到堆内存。&lt;/p&gt;
+
+&lt;p&gt;每次一个新的处理者克隆被创建(通过调用 &lt;code&gt;clone&lt;/code&gt; 或者 &lt;code&gt;Rc&lt;/code&gt;)，引用计数就会加，当它生命周期结束时，引用计数会减。当引用计数达到 0 时，对象会被销毁，内存也会被释放。&lt;/p&gt;
+
+&lt;p&gt;注意：上面所说的 &lt;code&gt;Rc&lt;/code&gt; 是不可变的。如果 &lt;code&gt;Bob&lt;/code&gt; 的内容需要被改变，他可以被附加的用 &lt;code&gt;RefCell&lt;/code&gt; 类型包装，这时就允许&lt;strong&gt;借用(borrow)&lt;/strong&gt;单个 bob 实例的引用。下面的例子中它将能在 &lt;code&gt;mutate&lt;/code&gt; 函数中被改变。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;fn mutate(bob: Rc&amp;lt;RefCell&amp;lt;Bob&amp;gt;&amp;gt;) {
+    bob.borrow_mut().name = String::from_str(&amp;quot;mutant&amp;quot;);
+}
+
+fn main() {
+    let bob = Rc::new(RefCell::new(Bob::new(&amp;quot;A&amp;quot;)));
+    mutate(bob.clone());
+    println!(&amp;quot;{:?}&amp;quot;, bob);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;new bob A
+Rc(RefCell { value: bob mutant })
+del bob mutant
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;这个例子证明了不同的低级别工具是如何以最小的代价来组合实现精确的垃圾回收。&lt;/p&gt;
+
+&lt;p&gt;举个栗子，&lt;code&gt;Rc&lt;/code&gt; 只能被使用在同一线程中。不过另外一个类型 &lt;code&gt;Arc&lt;/code&gt; 可以被不同线程使用。一个可变的 &lt;code&gt;Rc&lt;/code&gt; 可能会被多个对象互相引用。不过，&lt;code&gt;Rc&lt;/code&gt; 可以被克隆成弱引用(&lt;code&gt;Weak&lt;/code&gt;) ，这样就不会参与引用计数了。更多的信息请查看&lt;a href=&#34;http://doc.rust-lang.org/std/rc/&#34;&gt;官方文档&lt;/a&gt;。&lt;/p&gt;
+
+&lt;p&gt;最重要的是，更多高级的垃圾回收机制可以(即将)被实现，而且都是使用库的形式。&lt;/p&gt;
+
+&lt;h2 id=&#34;并发&#34;&gt;并发&lt;/h2&gt;
+
+&lt;p&gt;让我们看看 Rust 是如何改变我们使用线程的方式的。默认的模式是没有竞态数据。竞态数据不会发生是因为有很多特别的安全方式作用在线程上。原则上，你可以通过这些安全特性创建你自己的线程库，简单是因为所有权模型本身是线程安全的。&lt;/p&gt;
+
+&lt;p&gt;考虑一下我们将一个 &lt;code&gt;Bob&lt;/code&gt;(可移动的) 和一个 &lt;code&gt;integet&lt;/code&gt;(可拷贝的)发送到一个新的 Rust 线程中：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&#34;language-rust&#34;&gt;use std::thread::Thread
+
+fn main() {
+    let bob = Bob::new(&amp;quot;A&amp;quot;);
+    let i : i64 = 12;
+    let guard = Thread::scoped(move || {
+        println!(&amp;quot;From thread, {:?} and {:?}!&amp;quot;, bob, i);
+    });
+    println!(&amp;quot;waiting for thread to end&amp;quot;);
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;new bob A
+waiting for thread to end
+From thread, bob A and 12i64
+del bob A
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&#34;http://dwz.cn/APyoQ&#34;&gt;自己试一下&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;发生了什么？首先，我们创建了两个值：&lt;code&gt;bob&lt;/code&gt; 和 &lt;code&gt;i&lt;/code&gt;。然后我们通过 &lt;code&gt;Thread::scoped&lt;/code&gt; 创建了一个新的线程并且传入一个闭包让它执行。闭包捕获了我们的两个值。&lt;/p&gt;
+
+&lt;p&gt;捕获对 &lt;code&gt;bob&lt;/code&gt; 和 &lt;code&gt;i&lt;/code&gt; 来说意味着不同的事。&lt;code&gt;bob&lt;/code&gt; 会移动到闭包中(对外部线程不可用)，&lt;code&gt;i&lt;/code&gt; 则会被拷贝到闭包中，不过它还会对外部线程可用。&lt;/p&gt;
+
+&lt;p&gt;主线程会停下来等到新创建的线程执行完毕，执行完毕的标志是 &lt;code&gt;guard&lt;/code&gt; 达到生命周期的尽头(在这个例子中也就是 &lt;code&gt;main&lt;/code&gt; 函数的结尾)。&lt;/p&gt;
+
+&lt;p&gt;你可能会指出这跟你之前使用线程没啥区别 &amp;ndash; 我们大家都知道如果没有某些同步机制是不可以随便在不同线程之间共享内存地址的。Rust 的不同之处在于它在编译期就强制了这一点。&lt;/p&gt;
+
+&lt;p&gt;当然，我们能获取到 &lt;code&gt;guard&lt;/code&gt; 的返回值，也可以创建一个管道在不同线程中来发送和接受值。更多的信息请查看官方&lt;a href=&#34;http://doc.rust-lang.org/std/thread/&#34;&gt;线程文档&lt;/a&gt;，&lt;a href=&#34;http://doc.rust-lang.org/std/sync/mpsc/&#34;&gt;管道文档&lt;/a&gt;，和&lt;a href=&#34;http://doc.rust-lang.org/book/threads.html&#34;&gt;这本书&lt;/a&gt;。&lt;/p&gt;
+
+&lt;h2 id=&#34;还有啥&#34;&gt;还有啥？&lt;/h2&gt;
+
+&lt;p&gt;现在我们熟悉了 Rust 中的所有权系统，可以查看文档写安全代码啦。&lt;/p&gt;
+
+&lt;p&gt;不过还有一部分还没有讲到：&lt;em&gt;借用系统&lt;/em&gt;(borrowing system)。&lt;/p&gt;
+
+&lt;p&gt;在这个系列的第二部分中我们将学习为什么借用机制很有用，已经怎么最好的使用它。&lt;/p&gt;
+
+&lt;p&gt;原文地址：&lt;a href=&#34;http://nercury.github.io/rust/guide/2015/01/19/ownership.html&#34;&gt;http://nercury.github.io/rust/guide/2015/01/19/ownership.html&lt;/a&gt;&lt;/p&gt;</description>
+    </item>
+    
+  </channel>
+</rss>

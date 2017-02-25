@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Pm2 on 罄竹难书</title>
+    <link>https://se77en.cc/tags/pm2/index.xml</link>
+    <description>Recent content in Pm2 on 罄竹难书</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <atom:link href="https://se77en.cc/tags/pm2/index.xml" rel="self" type="application/rss+xml" />
+    
+    <item>
+      <title>告别node-forever, 拥抱PM2</title>
+      <link>https://se77en.cc/2013/%E5%91%8A%E5%88%ABnode-forever-%E6%8B%A5%E6%8A%B1pm2/</link>
+      <pubDate>Thu, 27 Jun 2013 00:00:00 +0000</pubDate>
+      
+      <guid>https://se77en.cc/2013/%E5%91%8A%E5%88%ABnode-forever-%E6%8B%A5%E6%8A%B1pm2/</guid>
+      <description>&lt;p&gt;原文地址:&lt;a href=&#34;http://devo.ps/blog/2013/06/26/goodbye-node-forever-hello-pm2.html&#34;&gt;Goodbye node-forever,hello PM2&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&#34;https://se77en.cc/img/goodbye-node-forever-hello-pm2-translation/pm22.png&#34; alt=&#34;pm2-logo&#34; /&gt;&lt;/p&gt;
+
+&lt;p&gt;devo.ps团队对JavaScript的迷恋已经不是什么秘密了;node.js作为服务器端,AngularJS作为客户端,某种程度上说,我们的堆栈是用它建成的.我们构建&lt;a href=&#34;http://devo.ps/blog/2013/01/31/farewell-to-regular-web-development-approaches.html&#34;&gt;静态客户端和RESTful JSON API&lt;/a&gt;的方法意味着我们跑了很多的node.js,我必须承认尽管node.js的一切都令人敬畏,但当我们在生产环境中运行它时它仍然会让我们感到头疼.相比一些更加成熟的语言,它的工具和最佳实践仍然缺乏(试想一下:监控,日志,错误处理).
+
+到目前为止,我们仍然依赖漂亮俏皮的&lt;a href=&#34;https://github.com/nodejitsu/forever&#34;&gt;node-forever模块&lt;/a&gt;.它是非常伟大的模块,不过依然缺失一些功能:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;有限的监控和日志功能&lt;/li&gt;
+&lt;li&gt;进程管理配置的支持差&lt;/li&gt;
+&lt;li&gt;不支持集群&lt;/li&gt;
+&lt;li&gt;代码库老化(意味着在升级node.js时频繁的失败)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;这就是为什么我们要在过去的几个月里去写&lt;a href=&#34;https://github.com/Unitech/pm2&#34;&gt;PM2模块&lt;/a&gt;.在我们即将发布针对生产环境的正式版之前我们想先让您看一眼.&lt;/p&gt;
+
+&lt;p&gt;###&lt;strong&gt;PM2到底是什么个东西呢?&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;首先第一件事,你需要先通过&lt;code&gt;npm&lt;/code&gt;来安装它:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;npm install -g pm2
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;让我们通过表格来对比下:&lt;/p&gt;
+
+&lt;table class=&#34;table table-bordered table-striped table-condensed&#34;&gt;
+   &lt;tr&gt;
+      &lt;th width=&#34;50%&#34;&gt;Feature&lt;/th&gt;
+      &lt;th width=&#34;25%&#34;&gt;Forever&lt;/th&gt;
+      &lt;th width=&#34;25%&#34;&gt;PM2&lt;/th&gt;
+   &lt;/tr&gt;
+   &lt;tr&gt;
+      &lt;td&gt;Keep Alive&lt;/td&gt;
+      &lt;td&gt;&amp;#10004;&lt;/td&gt;
+      &lt;td&gt;&amp;#10004;&lt;/td&gt;
+   &lt;/tr&gt;
+   &lt;tr&gt;
+      &lt;td&gt;Coffeescript&lt;/td&gt;
+      &lt;td&gt;&amp;#10004;&lt;/td&gt;
+      &lt;td&gt;&amp;nbsp;&lt;/td&gt;
+   &lt;/tr&gt;
+   &lt;tr&gt;
+      &lt;td&gt;Log aggregation&lt;/td&gt;
+      &lt;td&gt;&amp;nbsp;&lt;/td&gt;
+      &lt;td&gt;&amp;#10004;&lt;/td&gt;
+   &lt;/tr&gt;
+   &lt;tr&gt;
+      &lt;td&gt;API&lt;/td&gt;
+      &lt;td&gt;&amp;nbsp;&lt;/td&gt;
+      &lt;td&gt;&amp;#10004;&lt;/td&gt;
+   &lt;/tr&gt;
+   &lt;tr&gt;
+      &lt;td&gt;Terminal monitoring&lt;/td&gt;
+      &lt;td&gt;&amp;nbsp;&lt;/td&gt;
+      &lt;td&gt;&amp;#10004;&lt;/td&gt;
+   &lt;/tr&gt;
+   &lt;tr&gt;
+      &lt;td&gt;Clustering&lt;/td&gt;
+      &lt;td&gt;&amp;nbsp;&lt;/td&gt;
+      &lt;td&gt;&amp;#10004;&lt;/td&gt;
+   &lt;/tr&gt;
+   &lt;tr&gt;
+      &lt;td&gt;JSON configuration&lt;/td&gt;
+      &lt;td&gt;&amp;nbsp;&lt;/td&gt;
+      &lt;td&gt;&amp;#10004;&lt;/td&gt;
+   &lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p&gt;现在让我来介绍一点点主要特性&amp;hellip;&lt;/p&gt;
+
+&lt;p&gt;###&lt;strong&gt;原生的集群化支持&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;Node v0.6引入了集群特性,允许你在多个Node应用中共享socket.问题在于,它不能在容器外运行而且需要一些额外的配置来处理主进程和子进程.&lt;/p&gt;
+
+&lt;p&gt;PM2原生支持处理这个问题,而且不需要额外的代码:PM2本身作为主进程,然后它将你的代码封装到一个特殊的集群进程里,就像node.js一样,为你的代码文件添加一些全局变量.&lt;/p&gt;
+
+&lt;p&gt;想要启动一个使用所有CPU核心的集群,你只需要键入如下的指令:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ pm2 start app.js -i max
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;然后:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ pm2 list
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;然后就会显示类似下面的东西(ASCII UI FTW);&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&#34;https://se77en.cc/img/goodbye-node-forever-hello-pm2-translation/pm2-list.png&#34; alt=&#34;pm2-list&#34; /&gt;&lt;/p&gt;
+
+&lt;p&gt;就像你看到的,现在你的应用有多少个进程就取决于你的CPU核心数了&lt;/p&gt;
+
+&lt;p&gt;###&lt;strong&gt;按照termcaps-HTOP(Linux下的系统监控与进程管理软件)的方式管理&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;通过&lt;code&gt;pm2 list&lt;/code&gt;命令来观察所有运行的进程以及它们的状态已经足够好了.但是怎么来追踪它们的资源消耗呢?别担心,用这个命令:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ pm2 monit
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;你可以得到进程(以及集群)的CPU的使用率和内存占用.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&#34;https://se77en.cc/img/goodbye-node-forever-hello-pm2-translation/pm2-monit.png&#34; alt=&#34;pm2-monit&#34; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;声明:&lt;/strong&gt;&lt;a href=&#34;https://github.com/arunoda/node-usage&#34;&gt;node-usage&lt;/a&gt;到目前为止还不支持MacOS(随便什么性能要求),不过它在Linux下运行良好.&lt;/p&gt;
+
+&lt;p&gt;现在,让我们来核实一下我们的集群,还有对内存堆栈的垃圾回收,我们假设你已经有一个HTTP基准测试工具(如果没有,你一定要使用&lt;a href=&#34;https://github.com/wg/wrk&#34;&gt;WRK&lt;/a&gt;):&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;    $ express bufallo    //Create an express app
+    $ cd bufallo
+    $ npm install
+    $ pm2 start app.js -i max
+    $ wrk -c 100 -d 100 http://localhost:3000/
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;在另一个终端,运行监控选项:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ pm2 monit
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;耶~&lt;/p&gt;
+
+&lt;p&gt;###&lt;strong&gt;实时集中log处理&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;现在你不得不管理多个集群进程:一个爬取数据,一个处理数据,等等&amp;hellip;这就意味着大量log,你可以按照老式的方法处理:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ tail -f /path/to/log1 /path/to/log2 ...
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;但我们想的很周到,我们增加了&lt;code&gt;logs&lt;/code&gt;功能:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ pm2 logs
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&#34;https://se77en.cc/img/goodbye-node-forever-hello-pm2-translation/pm2-logs.png&#34; alt=&#34;pm2-logs&#34; /&gt;&lt;/p&gt;
+
+&lt;p&gt;###&lt;strong&gt;快速恢复&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;现在事情一切顺利,你的进程嗡嗡的运行着,你需要做一次硬重启(hard restart).现在吗?是的,首先,dump掉:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ pm2 dump
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;然后,你可以从文件中恢复它:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ pm2 kill      //让我们假设一个PM2停掉了
+$ pm2 resurect  //我所有的进程又满血满状态复活了
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;###&lt;strong&gt;强健的API&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;比方说,你想要监控所有被PM2管理的进程,而且同时还想监控运行这些进程的机器的状态(甚至希望创建一个Angular应用来调用这些API&amp;hellip;):&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;$ pm2 web
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;打开浏览器输入&lt;a href=&#34;http://localhost:9615&#34;&gt;http://localhost:9615&lt;/a&gt; ,我嘞个去!&lt;/p&gt;
+
+&lt;p&gt;###&lt;strong&gt;对了,还有很多特性&amp;hellip;&lt;/strong&gt;&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;全部测试通过,&lt;/li&gt;
+&lt;li&gt;新一代的&lt;code&gt;update-rc.d&lt;/code&gt;(&lt;code&gt;pm2 startup&lt;/code&gt;),当然它还是alpha版,&lt;/li&gt;
+&lt;li&gt;开发模式下更改文件自动重启(&lt;code&gt;pm2 dev&lt;/code&gt;),也同样还是草稿,&lt;/li&gt;
+&lt;li&gt;自动刷新log,&lt;/li&gt;
+&lt;li&gt;快捷的通过JSON文件管理你的应用,&lt;/li&gt;
+&lt;li&gt;在error log里记录未捕获的异常,&lt;/li&gt;
+&lt;li&gt;记录重启的次数和时间,&lt;/li&gt;
+&lt;li&gt;退出时自动杀死进程.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;##&lt;strong&gt;下一步计划?&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;首先,你可以去&lt;a href=&#34;https://github.com/Unitech/pm2&#34;&gt;Github上&lt;/a&gt;粉我们(我们喜欢stars).&lt;/p&gt;
+
+&lt;p&gt;我们开发的PM2提供了先进完整的Node进程管理解决方案.我们希望能有更多的人来帮助我们:更多的pull requests.一些还停留在开发路线图上面的功能我们会尽快完成,下面这些就是:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;远程管理/状态校验,&lt;/li&gt;
+&lt;li&gt;嵌入式跨进程通信通道(消息总线),&lt;/li&gt;
+&lt;li&gt;V8垃圾回收的内存泄漏检查,&lt;/li&gt;
+&lt;li&gt;Web界面,&lt;/li&gt;
+&lt;li&gt;监控数据持久化,&lt;/li&gt;
+&lt;li&gt;邮件通知.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;特别感谢&lt;a href=&#34;https://github.com/makara&#34;&gt;Makara Wang&lt;/a&gt;的观点和工具,还有&lt;a href=&#34;https://github.com/rlidwka&#34;&gt;Alex Kocharin&lt;/a&gt;提的建议和提交的代码.&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;在&lt;a href=&#34;https://twitter.com/intent/tweet?text=@devo_ps%20&amp;amp;related=devo_ps&amp;amp;url=http://devo.ps/blog/2013/06/26/goodbye-node-forever-hello-pm2.html&#34;&gt;Twitter&lt;/a&gt;上给我们反馈吧.&lt;/li&gt;
+&lt;li&gt;欢迎在&lt;a href=&#34;http://news.ycombinator.com/item?id=5945420&#34;&gt;Hacker News&lt;/a&gt;上和我们一起谈论&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;本博客基于&lt;a href=&#34;http://zespia.tw/hexo/zh-CN/&#34;&gt;hexo&lt;/a&gt;搭建,推荐一个不错的主题&lt;a href=&#34;https://github.com/A-limon/pacman&#34;&gt;Pacman&lt;/a&gt;,虽然我还没用上,不过可以去&lt;a href=&#34;http://yangjian.me&#34;&gt;@A-limon&lt;/a&gt;的主页查看效果.&lt;/p&gt;
+
+&lt;p&gt;最后感谢&lt;a href=&#34;http://weibo.com/436062867&#34;&gt;@A-limon&lt;/a&gt;同学提供翻译建议和审读.&lt;/p&gt;</description>
+    </item>
+    
+  </channel>
+</rss>

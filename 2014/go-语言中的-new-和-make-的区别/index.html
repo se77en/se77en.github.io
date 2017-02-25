@@ -1,0 +1,114 @@
+	<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-cn" lang="zh-cn">
+<head>
+  <link href="http://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.18.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+
+  
+  <title>Go 语言中的 new() 和 make() 的区别 &middot; 罄竹难书</title>
+  
+
+  
+  <link rel="stylesheet" href="https://se77en.cc/css/poole.css">
+  <link rel="stylesheet" href="https://se77en.cc/css/syntax.css">
+  <link rel="stylesheet" href="https://se77en.cc/css/hyde.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=PT+Sans:400,400italic,700|Abril+Fatface">
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  <link href="" rel="alternate" type="application/rss+xml" title="罄竹难书" />
+</head>
+
+	<body class="theme-base-0c ">
+		<div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://se77en.cc/"><h1>罄竹难书</h1></a>
+      <p class="lead">
+       做你喜欢做的事情，任何时候都不会太迟。 
+      </p>
+    </div>
+
+    <ul class="sidebar-nav">
+      <li><a href="/">Home</a> </li>
+      
+    </ul>
+
+    <p>&copy; 2017. All rights reserved. </p>
+  </div>
+</div>
+
+
+		<div class="content container">
+			<div class="post">
+			 	<h1>Go 语言中的 new() 和 make() 的区别</h1>
+			  <span class="post-date">Fri, Apr 25, 2014</span>
+			      <h2 id="概述">概述</h2>
+
+<p>Go 语言中的 <code>new</code> 和 <code>make</code> 一直是新手比较容易混淆的东西，咋一看很相似。不过解释两者之间的不同也非常容易。
+</p>
+
+<h2 id="new-的主要特性">new 的主要特性</h2>
+
+<p>首先 <code>new</code> 是内建函数，你可以从 <a href="http://golang.org/pkg/builtin/#new">http://golang.org/pkg/builtin/#new</a> 这儿看到它，它的定义也很简单：</p>
+
+<pre><code>func new(Type) *Type
+</code></pre>
+
+<p>官方文档对于它的描述是：</p>
+
+<blockquote>
+<p>内建函数 <code>new</code> 用来分配内存，它的第一个参数是一个类型，不是一个值，它的返回值是一个指向新分配类型零值的指针</p>
+</blockquote>
+
+<p>根据这段描述，我们可以自己实现一个类似 <code>new</code> 的功能：</p>
+
+<pre><code>func newInt() *int {
+  var i int
+  return &amp;i
+}
+
+someInt := newInt()
+</code></pre>
+
+<p>我们这个函数的功能跟 <code>someInt := new(int)</code> 一模一样。所以在我们自己定义 new 开头的函数时，出于约定也应该返回类型的指针。</p>
+
+<h2 id="make-的主要特性">make 的主要特性</h2>
+
+<p><code>make</code> 也是内建函数，你可以从 <a href="http://golang.org/pkg/builtin/#make">http://golang.org/pkg/builtin/#make</a> 这儿看到它，它的定义比 <code>new</code> 多了一个参数，返回值也不同：</p>
+
+<pre><code>func make(Type, size IntegerType) Type
+</code></pre>
+
+<p>官方文档对于它的描述是：</p>
+
+<blockquote>
+<p>内建函数 <code>make</code> 用来为 <code>slice</code>，<code>map</code> 或 <code>chan</code> 类型分配内存和初始化一个对象(<strong>注意</strong>：只能用在这三种类型上)，跟 <code>new</code> 类似，第一个参数也是一个类型而不是一个值，跟 <code>new</code> 不同的是，<code>make</code> 返回类型的引用而不是指针，而返回值也依赖于具体传入的类型，具体说明如下：</p>
+</blockquote>
+
+<pre><code>Slice: 第二个参数 size 指定了它的长度，它的容量和长度相同。
+你可以传入第三个参数来指定不同的容量值，但必须不能比长度值小。
+比如 make([]int, 0, 10)
+
+Map: 根据 size 大小来初始化分配内存，不过分配后的 map 长度为 0，如果 size 被忽略了，那么会在初始化分配内存时分配一个小尺寸的内存
+
+Channel: 管道缓冲区依据缓冲区容量被初始化。如果容量为 0 或者忽略容量，管道是没有缓冲区的
+</code></pre>
+
+<h2 id="总结">总结</h2>
+
+<p><code>new</code> 的作用是初始化一个指向类型的指针(<code>*T</code>)，<code>make</code> 的作用是为 <code>slice</code>，<code>map</code> 或 <code>chan</code> 初始化并返回引用(<code>T</code>)。</p>
+			</div>
+
+			
+		</div>
+
+  </body>
+</html>

@@ -1,0 +1,118 @@
+	<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-cn" lang="zh-cn">
+<head>
+  <link href="http://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.18.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+
+  
+  <title>为你的 Github Page 加上 HTTPS &middot; 罄竹难书</title>
+  
+
+  
+  <link rel="stylesheet" href="https://se77en.cc/css/poole.css">
+  <link rel="stylesheet" href="https://se77en.cc/css/syntax.css">
+  <link rel="stylesheet" href="https://se77en.cc/css/hyde.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=PT+Sans:400,400italic,700|Abril+Fatface">
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  <link href="" rel="alternate" type="application/rss+xml" title="罄竹难书" />
+</head>
+
+	<body class="theme-base-0c ">
+		<div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://se77en.cc/"><h1>罄竹难书</h1></a>
+      <p class="lead">
+       做你喜欢做的事情，任何时候都不会太迟。 
+      </p>
+    </div>
+
+    <ul class="sidebar-nav">
+      <li><a href="/">Home</a> </li>
+      
+    </ul>
+
+    <p>&copy; 2017. All rights reserved. </p>
+  </div>
+</div>
+
+
+		<div class="content container">
+			<div class="post">
+			 	<h1>为你的 Github Page 加上 HTTPS</h1>
+			  <span class="post-date">Mon, Mar 21, 2016</span>
+			      <h2 id="概述">概述</h2>
+
+<p>前几天突然收到一封邮件，长这样：</p>
+
+<blockquote>
+<p>Hey Damon Zhao!</p>
+
+<p>I am @nubela on Github and I found your project (se77en/se77en.github.io) on Github. There is a small chance you might have heard of some of my projects such as Javelin Browser or Gom VPN.</p>
+
+<p>Anyways, I found that Github Page at se77en/se77en.github.io has a custom domain, and I was wondering if I can help you get it to HTTPS with a LetsEncrypt cert? (for free, of course!)</p>
+
+<p>I work at Kloudsec (a free and minimal CDN for programmers) and I just built this tool to provision LetsEncrypt certs for github pages.</p>
+
+<p>Will you like to try it? (and help me test it?) ;)</p>
+
+<p>Steven.</p>
+</blockquote>
+
+<p>意思就是他们做个一个可以免费帮你把 Github Page 加 HTTPS 的服务，活雷锋啊，谁信啊！反正我是没信，这哥们估计也猜到了我不会信，又连着发了几封，就是说反正不花钱，你的博客又没有秘密，试试呗。然后我就试试了。。。试完感觉上天了，赶紧回复这哥们这东西好啊，爽歪歪啊，你是活雷锋啊。他说我服务这么好你写篇博客替我宣传呗，我说必须哒！于是有个这篇博客。
+</p>
+
+<h2 id="先决条件">先决条件</h2>
+
+<p>首先你得有个自定义域名，没有的话就别往下看了。</p>
+
+<h2 id="步骤">步骤</h2>
+
+<ol>
+<li>访问 <a href="https://kloudsec.com">活雷锋网站 Kloudsec</a>，大概长这样，然后点击泛黄的按钮。
+<img src="/img/make-your-github-page-custom-domain-with-https/1.png" alt="1" /></li>
+<li>在弹出的白匡里输入你的域名。
+<img src="/img/make-your-github-page-custom-domain-with-https/2.png" alt="2" /></li>
+<li>输入邮箱和密码注册账号。
+<img src="/img/make-your-github-page-custom-domain-with-https/3.png" alt="3" /></li>
+<li>登录你的邮箱激活账号。
+<img src="/img/make-your-github-page-custom-domain-with-https/4.png" alt="4" /></li>
+<li>激活登录账号以后主页应该长这样。点击 <strong>GET INSTRUCTIONS</strong>。
+<img src="/img/make-your-github-page-custom-domain-with-https/5.png" alt="5" /></li>
+<li>接下来它会给出一些配置，登录你的域名 DNS 提供商修改这些配置，我用的是 dnspod，长这样(注意 A 记录只能留它给的这一个，之前的要全部删除掉)，修改完之后点击 <strong>VERIFY DNS RECORDS</strong>。
+<img src="/img/make-your-github-page-custom-domain-with-https/6-1.png" alt="6-2" />
+<img src="/img/make-your-github-page-custom-domain-with-https/6-2.png" alt="6-2" />
+<img src="/img/make-your-github-page-custom-domain-with-https/6-3.png" alt="6-3" /></li>
+<li>验证完成(可能等待与人品成反比的时间)之后，回到主页点击类似播放键的按钮，会出现几个问题等待修复，一个一个修复就行，全程下一步。
+<img src="/img/make-your-github-page-custom-domain-with-https/7.png" alt="7" /></li>
+<li>然后等待获取 https 证书，同样等待时间与人品成反比，不要急，你人品不行。
+<img src="/img/make-your-github-page-custom-domain-with-https/8-1.png" alt="8-2" />
+<img src="/img/make-your-github-page-custom-domain-with-https/8-2.png" alt="8-2" /></li>
+<li>现在可以访问 <code>https://yourawesomeshittydomain.xxoo</code> 来验证看是否成功了。</li>
+<li>这时你可能会发现直接输入不加 <code>https</code> 前缀的域名不会自动跳转到 <code>https</code> 开头的域名，同样 <code>www</code> 开头的域名也不会，不用担心，活雷锋都替你想好了。</li>
+<li>点击左侧边栏的 <strong>PROTECTION</strong> 然后把自动重定向到 <code>https</code> 都打开。
+<img src="/img/make-your-github-page-custom-domain-with-https/11-1.png" alt="11-1" />
+<img src="/img/make-your-github-page-custom-domain-with-https/11-2.png" alt="11-2" /></li>
+<li>完成了，上天吧(额。。。上天是不可能的，不过谷歌会提高 https 网站的搜索排名，国内某(垃圾)搜索引擎不详)！
+<img src="/img/make-your-github-page-custom-domain-with-https/12.png" alt="12" /></li>
+</ol>
+
+<h2 id="感谢">感谢</h2>
+
+<p>感觉那些活雷锋(steven@nubela.co)们。</p>
+			</div>
+
+			
+		</div>
+
+  </body>
+</html>

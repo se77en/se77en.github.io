@@ -1,0 +1,255 @@
+	<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-cn" lang="zh-cn">
+<head>
+  <link href="http://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.18.1" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+
+  
+  <title>告别node-forever, 拥抱PM2 &middot; 罄竹难书</title>
+  
+
+  
+  <link rel="stylesheet" href="https://se77en.cc/css/poole.css">
+  <link rel="stylesheet" href="https://se77en.cc/css/syntax.css">
+  <link rel="stylesheet" href="https://se77en.cc/css/hyde.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=PT+Sans:400,400italic,700|Abril+Fatface">
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  <link href="" rel="alternate" type="application/rss+xml" title="罄竹难书" />
+</head>
+
+	<body class="theme-base-0c ">
+		<div class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://se77en.cc/"><h1>罄竹难书</h1></a>
+      <p class="lead">
+       做你喜欢做的事情，任何时候都不会太迟。 
+      </p>
+    </div>
+
+    <ul class="sidebar-nav">
+      <li><a href="/">Home</a> </li>
+      
+    </ul>
+
+    <p>&copy; 2017. All rights reserved. </p>
+  </div>
+</div>
+
+
+		<div class="content container">
+			<div class="post">
+			 	<h1>告别node-forever, 拥抱PM2</h1>
+			  <span class="post-date">Thu, Jun 27, 2013</span>
+			      <p>原文地址:<a href="http://devo.ps/blog/2013/06/26/goodbye-node-forever-hello-pm2.html">Goodbye node-forever,hello PM2</a></p>
+
+<p><img src="/img/goodbye-node-forever-hello-pm2-translation/pm22.png" alt="pm2-logo" /></p>
+
+<p>devo.ps团队对JavaScript的迷恋已经不是什么秘密了;node.js作为服务器端,AngularJS作为客户端,某种程度上说,我们的堆栈是用它建成的.我们构建<a href="http://devo.ps/blog/2013/01/31/farewell-to-regular-web-development-approaches.html">静态客户端和RESTful JSON API</a>的方法意味着我们跑了很多的node.js,我必须承认尽管node.js的一切都令人敬畏,但当我们在生产环境中运行它时它仍然会让我们感到头疼.相比一些更加成熟的语言,它的工具和最佳实践仍然缺乏(试想一下:监控,日志,错误处理).
+
+到目前为止,我们仍然依赖漂亮俏皮的<a href="https://github.com/nodejitsu/forever">node-forever模块</a>.它是非常伟大的模块,不过依然缺失一些功能:</p>
+
+<ul>
+<li>有限的监控和日志功能</li>
+<li>进程管理配置的支持差</li>
+<li>不支持集群</li>
+<li>代码库老化(意味着在升级node.js时频繁的失败)</li>
+</ul>
+
+<p>这就是为什么我们要在过去的几个月里去写<a href="https://github.com/Unitech/pm2">PM2模块</a>.在我们即将发布针对生产环境的正式版之前我们想先让您看一眼.</p>
+
+<p>###<strong>PM2到底是什么个东西呢?</strong></p>
+
+<p>首先第一件事,你需要先通过<code>npm</code>来安装它:</p>
+
+<pre><code>npm install -g pm2
+</code></pre>
+
+<p>让我们通过表格来对比下:</p>
+
+<table class="table table-bordered table-striped table-condensed">
+   <tr>
+      <th width="50%">Feature</th>
+      <th width="25%">Forever</th>
+      <th width="25%">PM2</th>
+   </tr>
+   <tr>
+      <td>Keep Alive</td>
+      <td>&#10004;</td>
+      <td>&#10004;</td>
+   </tr>
+   <tr>
+      <td>Coffeescript</td>
+      <td>&#10004;</td>
+      <td>&nbsp;</td>
+   </tr>
+   <tr>
+      <td>Log aggregation</td>
+      <td>&nbsp;</td>
+      <td>&#10004;</td>
+   </tr>
+   <tr>
+      <td>API</td>
+      <td>&nbsp;</td>
+      <td>&#10004;</td>
+   </tr>
+   <tr>
+      <td>Terminal monitoring</td>
+      <td>&nbsp;</td>
+      <td>&#10004;</td>
+   </tr>
+   <tr>
+      <td>Clustering</td>
+      <td>&nbsp;</td>
+      <td>&#10004;</td>
+   </tr>
+   <tr>
+      <td>JSON configuration</td>
+      <td>&nbsp;</td>
+      <td>&#10004;</td>
+   </tr>
+</table>
+
+<p>现在让我来介绍一点点主要特性&hellip;</p>
+
+<p>###<strong>原生的集群化支持</strong></p>
+
+<p>Node v0.6引入了集群特性,允许你在多个Node应用中共享socket.问题在于,它不能在容器外运行而且需要一些额外的配置来处理主进程和子进程.</p>
+
+<p>PM2原生支持处理这个问题,而且不需要额外的代码:PM2本身作为主进程,然后它将你的代码封装到一个特殊的集群进程里,就像node.js一样,为你的代码文件添加一些全局变量.</p>
+
+<p>想要启动一个使用所有CPU核心的集群,你只需要键入如下的指令:</p>
+
+<pre><code>$ pm2 start app.js -i max
+</code></pre>
+
+<p>然后:</p>
+
+<pre><code>$ pm2 list
+</code></pre>
+
+<p>然后就会显示类似下面的东西(ASCII UI FTW);</p>
+
+<p><img src="/img/goodbye-node-forever-hello-pm2-translation/pm2-list.png" alt="pm2-list" /></p>
+
+<p>就像你看到的,现在你的应用有多少个进程就取决于你的CPU核心数了</p>
+
+<p>###<strong>按照termcaps-HTOP(Linux下的系统监控与进程管理软件)的方式管理</strong></p>
+
+<p>通过<code>pm2 list</code>命令来观察所有运行的进程以及它们的状态已经足够好了.但是怎么来追踪它们的资源消耗呢?别担心,用这个命令:</p>
+
+<pre><code>$ pm2 monit
+</code></pre>
+
+<p>你可以得到进程(以及集群)的CPU的使用率和内存占用.</p>
+
+<p><img src="/img/goodbye-node-forever-hello-pm2-translation/pm2-monit.png" alt="pm2-monit" /></p>
+
+<p><strong>声明:</strong><a href="https://github.com/arunoda/node-usage">node-usage</a>到目前为止还不支持MacOS(随便什么性能要求),不过它在Linux下运行良好.</p>
+
+<p>现在,让我们来核实一下我们的集群,还有对内存堆栈的垃圾回收,我们假设你已经有一个HTTP基准测试工具(如果没有,你一定要使用<a href="https://github.com/wg/wrk">WRK</a>):</p>
+
+<pre><code>    $ express bufallo    //Create an express app
+    $ cd bufallo
+    $ npm install
+    $ pm2 start app.js -i max
+    $ wrk -c 100 -d 100 http://localhost:3000/
+</code></pre>
+
+<p>在另一个终端,运行监控选项:</p>
+
+<pre><code>$ pm2 monit
+</code></pre>
+
+<p>耶~</p>
+
+<p>###<strong>实时集中log处理</strong></p>
+
+<p>现在你不得不管理多个集群进程:一个爬取数据,一个处理数据,等等&hellip;这就意味着大量log,你可以按照老式的方法处理:</p>
+
+<pre><code>$ tail -f /path/to/log1 /path/to/log2 ...
+</code></pre>
+
+<p>但我们想的很周到,我们增加了<code>logs</code>功能:</p>
+
+<pre><code>$ pm2 logs
+</code></pre>
+
+<p><img src="/img/goodbye-node-forever-hello-pm2-translation/pm2-logs.png" alt="pm2-logs" /></p>
+
+<p>###<strong>快速恢复</strong></p>
+
+<p>现在事情一切顺利,你的进程嗡嗡的运行着,你需要做一次硬重启(hard restart).现在吗?是的,首先,dump掉:</p>
+
+<pre><code>$ pm2 dump
+</code></pre>
+
+<p>然后,你可以从文件中恢复它:</p>
+
+<pre><code>$ pm2 kill      //让我们假设一个PM2停掉了
+$ pm2 resurect  //我所有的进程又满血满状态复活了
+</code></pre>
+
+<p>###<strong>强健的API</strong></p>
+
+<p>比方说,你想要监控所有被PM2管理的进程,而且同时还想监控运行这些进程的机器的状态(甚至希望创建一个Angular应用来调用这些API&hellip;):</p>
+
+<pre><code>$ pm2 web
+</code></pre>
+
+<p>打开浏览器输入<a href="http://localhost:9615">http://localhost:9615</a> ,我嘞个去!</p>
+
+<p>###<strong>对了,还有很多特性&hellip;</strong></p>
+
+<ul>
+<li>全部测试通过,</li>
+<li>新一代的<code>update-rc.d</code>(<code>pm2 startup</code>),当然它还是alpha版,</li>
+<li>开发模式下更改文件自动重启(<code>pm2 dev</code>),也同样还是草稿,</li>
+<li>自动刷新log,</li>
+<li>快捷的通过JSON文件管理你的应用,</li>
+<li>在error log里记录未捕获的异常,</li>
+<li>记录重启的次数和时间,</li>
+<li>退出时自动杀死进程.</li>
+</ul>
+
+<p>##<strong>下一步计划?</strong></p>
+
+<p>首先,你可以去<a href="https://github.com/Unitech/pm2">Github上</a>粉我们(我们喜欢stars).</p>
+
+<p>我们开发的PM2提供了先进完整的Node进程管理解决方案.我们希望能有更多的人来帮助我们:更多的pull requests.一些还停留在开发路线图上面的功能我们会尽快完成,下面这些就是:</p>
+
+<ul>
+<li>远程管理/状态校验,</li>
+<li>嵌入式跨进程通信通道(消息总线),</li>
+<li>V8垃圾回收的内存泄漏检查,</li>
+<li>Web界面,</li>
+<li>监控数据持久化,</li>
+<li>邮件通知.</li>
+</ul>
+
+<p>特别感谢<a href="https://github.com/makara">Makara Wang</a>的观点和工具,还有<a href="https://github.com/rlidwka">Alex Kocharin</a>提的建议和提交的代码.</p>
+
+<ul>
+<li>在<a href="https://twitter.com/intent/tweet?text=@devo_ps%20&amp;related=devo_ps&amp;url=http://devo.ps/blog/2013/06/26/goodbye-node-forever-hello-pm2.html">Twitter</a>上给我们反馈吧.</li>
+<li>欢迎在<a href="http://news.ycombinator.com/item?id=5945420">Hacker News</a>上和我们一起谈论</li>
+</ul>
+
+<p>本博客基于<a href="http://zespia.tw/hexo/zh-CN/">hexo</a>搭建,推荐一个不错的主题<a href="https://github.com/A-limon/pacman">Pacman</a>,虽然我还没用上,不过可以去<a href="http://yangjian.me">@A-limon</a>的主页查看效果.</p>
+
+<p>最后感谢<a href="http://weibo.com/436062867">@A-limon</a>同学提供翻译建议和审读.</p>
+			</div>
+
+			
+		</div>
+
+  </body>
+</html>
